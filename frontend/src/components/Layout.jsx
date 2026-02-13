@@ -61,7 +61,7 @@ export default function Layout() {
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex flex-col w-72 bg-slate-900/95 text-white transform transition-all duration-300 ease-out rounded-r-2xl shadow-xl ${
+        className={`fixed inset-y-0 left-0 z-40 flex flex-col w-72 bg-slate-900/95 text-white transform transition-all duration-300 ease-out shadow-xl ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -70,7 +70,7 @@ export default function Layout() {
           <button onClick={() => setSidebarOpen(false)} className="p-2 -m-2 rounded-lg hover:bg-white/5 transition-colors"><X className="w-5 h-5" /></button>
         </div>
         <nav className="flex-1 flex flex-col min-h-0 py-4 px-3">
-          <div className="flex-1 flex flex-col gap-2 min-h-0 overflow-y-auto overflow-x-hidden sidebar-nav pr-1">
+          <div className="flex-1 flex flex-col gap-2 min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar">
             {nav.map(({ path, label, icon: Icon }) => (
               <Link
                 key={path}
@@ -86,9 +86,6 @@ export default function Layout() {
                 <span>{label}</span>
               </Link>
             ))}
-          </div>
-          <div className="shrink-0 pt-4 mt-2 border-t border-white/5">
-            <p className="px-3 py-2 text-[11px] uppercase tracking-wider text-slate-500/80">Finance Software v1.0</p>
           </div>
         </nav>
       </aside>

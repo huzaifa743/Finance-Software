@@ -11,19 +11,13 @@ body {
   @apply bg-slate-50 text-slate-900 font-sans antialiased;
 }
 
-/* Sleek sidebar scrollbar */
-.sidebar-nav::-webkit-scrollbar {
-  width: 5px;
+/* Hide scrollbars but keep scroll behavior */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
-.sidebar-nav::-webkit-scrollbar-track {
-  background: transparent;
-}
-.sidebar-nav::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-}
-.sidebar-nav::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 @layer components {
