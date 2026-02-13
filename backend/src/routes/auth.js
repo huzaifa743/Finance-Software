@@ -9,6 +9,9 @@ const router = Router();
 
 router.post('/login', async (req, res) => {
   try {
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({ error: 'JWT secret not configured.' });
+    }
     const { email, password } = req.body;
     const identifier = String(email || '').trim();
     const lookup = identifier.toLowerCase() === 'admin' ? 'admin@finance.com' : identifier;
