@@ -1,0 +1,28 @@
+{
+  "name": "finance-software-backend",
+  "version": "1.0.0",
+  "description": "Finance Software API",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "init-db": "node src/db/init.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.6.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "@google-cloud/translate": "^8.5.0",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.1",
+    "express-validator": "^7.2.0",
+    "googleapis": "^140.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.16",
+    "pdfkit": "^0.15.0",
+    "uuid": "^10.0.0"
+  }
+}
