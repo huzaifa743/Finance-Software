@@ -32,7 +32,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4">
       <div className="w-full max-w-md">
-        <div className="card p-8 shadow-xl">
+        <div className="card min-h-[520px] p-10 shadow-xl flex flex-col justify-center">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-slate-900">Finance Software</h1>
             <p className="text-slate-500 mt-1">Sign in to your account</p>
@@ -68,9 +68,6 @@ export default function Login() {
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
-          <p className="mt-6 text-center text-sm text-slate-500">
-            Default: admin / admin123
-          </p>
         </div>
       </div>
     </div>
