@@ -70,32 +70,14 @@ CREATE TABLE IF NOT EXISTS system_settings (
   value TEXT
 );
 
--- Financial year, currency, tax, etc.
+-- Financial year and auto numbering
 INSERT OR IGNORE INTO system_settings (key, value) VALUES
   ('financial_year_start', '2025-01-01'),
   ('financial_year_end', '2025-12-31'),
-  ('currency', 'PKR'),
-  ('country', 'PK'),
-  ('tax_rate', '18'),
   ('invoice_prefix', 'INV'),
   ('voucher_prefix', 'VCH'),
   ('invoice_counter', '1'),
-  ('voucher_counter', '1'),
-  ('language', 'en'),
-  ('notification_alerts', '1'),
-  ('cloud_backup', '0'),
-  ('report_email_auto', '0'),
-  ('report_email_manual', '1'),
-  ('report_whatsapp_auto', '0'),
-  ('report_whatsapp_manual', '1'),
-  ('report_email_recipients', ''),
-  ('report_whatsapp_numbers', ''),
-  ('report_auto_time', '09:00'),
-  ('report_auto_timezone', 'UTC'),
-  ('report_auto_type', 'summary'),
-  ('drive_enabled', '0'),
-  ('drive_folder_id', ''),
-  ('translate_enabled', '0');
+  ('voucher_counter', '1');
 
 -- Expense categories
 CREATE TABLE IF NOT EXISTS expense_categories (

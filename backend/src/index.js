@@ -16,7 +16,7 @@ import banksRoutes from './routes/banks.js';
 import plRoutes from './routes/pl.js';
 import staffRoutes from './routes/staff.js';
 import inventoryRoutes from './routes/inventory.js';
-import settingsRoutes, { startAutoReportScheduler } from './routes/settings.js';
+import settingsRoutes from './routes/settings.js';
 import dashboardRoutes from './routes/dashboard.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -64,4 +64,3 @@ app.listen(PORT, () => {
   console.log(`Finance Software API running at http://localhost:${PORT}`);
 });
 
-startAutoReportScheduler();

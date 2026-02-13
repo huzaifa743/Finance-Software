@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
-import { I18nProvider } from './context/I18nContext';
 import './index.css';
 
 class ErrorBoundary extends React.Component {
@@ -46,11 +45,9 @@ ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <I18nProvider>
-          <ErrorBoundary>
-            <App />
-          </ErrorBoundary>
-        </I18nProvider>
+        <ErrorBoundary>
+          <App />
+        </ErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>

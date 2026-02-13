@@ -1,40 +1,13 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { useI18n } from '../context/I18nContext';
 import { Save, FileText, Plus, Pencil, Trash2, X, Download, Upload } from 'lucide-react';
 
-const REPORT_TYPES = [
-  { value: 'summary', label: 'Summary (dashboard)' },
-  { value: 'daily_sales', label: 'Daily sales' },
-  { value: 'monthly_sales', label: 'Monthly sales' },
-  { value: 'date_range_sales', label: 'Date-range sales' },
-  { value: 'daily_expenses', label: 'Daily expenses' },
-  { value: 'monthly_expenses', label: 'Monthly expenses' },
-  { value: 'daily_purchases', label: 'Daily purchases' },
-  { value: 'monthly_purchases', label: 'Monthly purchases' },
-  { value: 'date_range_purchases', label: 'Date-range purchases' },
-  { value: 'category_expenses', label: 'Category-wise expenses' },
-  { value: 'inventory', label: 'Inventory sales (date range)' },
-];
-const LOCAL_TIMEZONES = (() => {
-  try {
-    if (!Intl.supportedValuesOf) return [];
-    return Intl.supportedValuesOf('timeZone').slice().sort();
-  } catch {
-    return [];
-  }
-})();
 const AUDIT_MODULES = ['', 'settings', 'sales', 'expenses', 'purchases', 'branches', 'users', 'expense_categories', 'cash', 'banks', 'receivables', 'inventory', 'pl', 'staff'];
 
 const SETTINGS_DEFAULTS = {
-  financial_year_start: '', financial_year_end: '', currency: 'PKR', country: 'PK', tax_rate: '18',
+  financial_year_start: '', financial_year_end: '',
   invoice_prefix: 'INV', voucher_prefix: 'VCH', invoice_counter: '1', voucher_counter: '1',
-  language: 'en', notification_alerts: '1', cloud_backup: '0',
-  report_email_auto: '0', report_email_manual: '1', report_whatsapp_auto: '0', report_whatsapp_manual: '1',
-  report_email_recipients: '', report_whatsapp_numbers: '',
-  report_auto_time: '09:00', report_auto_timezone: 'UTC', report_auto_type: 'summary',
-  drive_enabled: '0', drive_folder_id: '', translate_enabled: '0',
 };
 
 function Section({ title, children }) {
@@ -48,12 +21,8 @@ function Section({ title, children }) {
 
 export default function Settings() {
   const { user } = useAuth();
-  const { setLanguage, setTranslateEnabled } = useI18n();
   const canBackupRestore = user?.role_name === 'Super Admin' || user?.role_name === 'Finance Manager';
   const [settings, setSettings] = useState({});
-  const [countries, setCountries] = useState([]);
-  const [currencies, setCurrencies] = useState([]);
-  const [languages, setLanguages] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -62,59 +31,21 @@ export default function Settings() {
   const [auditLogs, setAuditLogs] = useState([]);
   const [categoryModal, setCategoryModal] = useState(null);
   const [categoryForm, setCategoryForm] = useState({ name: '', type: 'variable' });
-  const [sendReportType, setSendReportType] = useState('email');
-  const [sendingReport, setSendingReport] = useState(false);
-  const [reportSuccess, setReportSuccess] = useState('');
-  const [reportType, setReportType] = useState('summary');
-  const [reportDate, setReportDate] = useState(new Date().toISOString().slice(0, 10));
-  const [reportMonth, setReportMonth] = useState(String(new Date().getMonth() + 1));
-  const [reportYear, setReportYear] = useState(String(new Date().getFullYear()));
-  const [reportFrom, setReportFrom] = useState('');
-  const [reportTo, setReportTo] = useState('');
-  const [reportBranchId, setReportBranchId] = useState('');
-  const [branches, setBranches] = useState([]);
   const [auditModule, setAuditModule] = useState('');
   const [backupLoading, setBackupLoading] = useState(false);
   const [restoreFile, setRestoreFile] = useState(null);
   const [restoreLoading, setRestoreLoading] = useState(false);
-
-  const localCurrencies = (() => {
-    try {
-      if (!Intl.supportedValuesOf) return [];
-      const dn = new Intl.DisplayNames(['en'], { type: 'currency' });
-      return Intl.supportedValuesOf('currency').map((code) => ({ code, name: dn.of(code) || code }));
-    } catch {
-      return [];
-    }
-  })();
-
-  const currencyList = currencies.length ? currencies : localCurrencies;
-  const timezoneOptions = (() => {
-    const selected = settings.report_auto_timezone || 'UTC';
-    const list = LOCAL_TIMEZONES.length ? LOCAL_TIMEZONES : ['UTC'];
-    return list.includes(selected) ? list : [selected, ...list];
-  })();
 
   const update = (k, v) => setSettings((s) => ({ ...s, [k]: v }));
 
   useEffect(() => {
     Promise.all([
       api.get('/settings'),
-      api.get('/settings/countries').catch(() => []),
-      api.get('/settings/languages').catch(() => []),
-      api.get('/settings/currencies').catch(() => []),
       api.get('/expenses/categories').catch(() => []),
-      api.get('/branches').catch(() => []),
     ])
-      .then(([s, c, l, cur, cat, br]) => {
+      .then(([s, cat]) => {
         setSettings({ ...SETTINGS_DEFAULTS, ...s });
-        if (s?.language) setLanguage(s.language);
-        if (s?.translate_enabled != null) setTranslateEnabled(String(s.translate_enabled) !== '0');
-        setCountries(Array.isArray(c) ? c : []);
-        setLanguages(Array.isArray(l) ? l : []);
-        setCurrencies(Array.isArray(cur) ? cur : []);
         setCategories(Array.isArray(cat) ? cat : []);
-        setBranches(Array.isArray(br) ? br : []);
       })
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
@@ -133,33 +64,10 @@ export default function Settings() {
     setSaving(true);
     try {
       await api.post('/settings/bulk', settings);
-      if (settings.language) setLanguage(settings.language);
-      if (settings.translate_enabled != null) setTranslateEnabled(String(settings.translate_enabled) !== '0');
     } catch (e) {
       setErr(e.message);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const runCloudBackup = async () => {
-    setErr('');
-    setBackupLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/settings/backup/cloud', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: token ? `Bearer ${token}` : '' },
-        body: JSON.stringify({ folder_id: settings.drive_folder_id || '' }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || res.statusText || 'Cloud backup failed');
-      setErr('');
-      alert('Cloud backup uploaded successfully.');
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBackupLoading(false);
     }
   };
 
@@ -185,44 +93,6 @@ export default function Settings() {
       setCategories(cat);
     } catch (e) {
       setErr(e.message);
-    }
-  };
-
-  const sendReport = async () => {
-    setErr('');
-    setReportSuccess('');
-    if (['date_range_sales', 'date_range_purchases', 'inventory'].includes(reportType) && (!reportFrom || !reportTo)) {
-      setErr('Select From and To dates for the selected report.');
-      return;
-    }
-    const rec = sendReportType === 'email' ? settings.report_email_recipients : settings.report_whatsapp_numbers;
-    if (!rec?.trim()) {
-      setErr('Add email recipients or WhatsApp numbers in the fields above, then try again.');
-      return;
-    }
-    setSendingReport(true);
-    try {
-      const body = {
-        type: sendReportType,
-        reportType,
-        recipients: rec.trim(),
-        branch_id: reportBranchId || undefined,
-      };
-      if (['daily_sales', 'daily_expenses', 'daily_purchases'].includes(reportType)) body.date = reportDate;
-      if (['monthly_sales', 'monthly_expenses', 'monthly_purchases'].includes(reportType)) {
-        body.month = reportMonth;
-        body.year = reportYear;
-      }
-      if (['date_range_sales', 'date_range_purchases', 'inventory', 'category_expenses'].includes(reportType)) {
-        body.from = reportFrom;
-        body.to = reportTo;
-      }
-      const r = await api.post('/settings/send-report', body);
-      setReportSuccess(r.message || 'Report sent.');
-    } catch (e) {
-      setErr(e.message || 'Send failed.');
-    } finally {
-      setSendingReport(false);
     }
   };
 
@@ -273,18 +143,6 @@ export default function Settings() {
     }
   };
 
-  const onCountryChange = async (code) => {
-    update('country', code);
-    try {
-      const res = await api.get(`/settings/tax-rate?country=${encodeURIComponent(code)}`);
-      if (res?.rate != null && !Number.isNaN(Number(res.rate))) {
-        update('tax_rate', String(res.rate));
-      }
-    } catch {
-      // Keep current tax rate if the provider fails.
-    }
-  };
-
   if (loading) return <div className="flex items-center justify-center py-20"><div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" /></div>;
 
   return (
@@ -292,7 +150,7 @@ export default function Settings() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">System Settings &amp; Utilities</h1>
-          <p className="text-slate-500 mt-1">Customization &amp; control — financial year, currency, tax, categories, language, numbering, alerts, backup, audit, reports</p>
+          <p className="text-slate-500 mt-1">Financial year, categories, auto numbering, backup, and audit logs</p>
         </div>
         <button onClick={save} className="btn-primary" disabled={saving}><Save className="w-4 h-4" /> {saving ? 'Saving…' : 'Save all'}</button>
       </div>
@@ -304,14 +162,6 @@ export default function Settings() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label className="label">Start</label><input type="date" className="input" value={settings.financial_year_start || ''} onChange={(e) => update('financial_year_start', e.target.value)} /></div>
             <div><label className="label">End</label><input type="date" className="input" value={settings.financial_year_end || ''} onChange={(e) => update('financial_year_end', e.target.value)} /></div>
-          </div>
-        </Section>
-
-        <Section title="Currency &amp; tax settings (all countries)">
-          <div className="space-y-4">
-            <div><label className="label">Currency</label><select className="input" value={settings.currency || 'PKR'} onChange={(e) => update('currency', e.target.value)}>{currencyList.map((x) => <option key={x.code} value={x.code}>{x.code} — {x.name}</option>)}</select></div>
-            <div><label className="label">Country (tax)</label><select className="input" value={settings.country || 'PK'} onChange={(e) => onCountryChange(e.target.value)}>{countries.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}</select></div>
-            <div><label className="label">Tax rate %</label><input type="number" step="0.01" min="0" className="input" value={settings.tax_rate ?? ''} onChange={(e) => update('tax_rate', e.target.value)} placeholder="0" /></div>
           </div>
         </Section>
 
@@ -327,17 +177,6 @@ export default function Settings() {
           </div>
         </Section>
 
-        <Section title="Select language">
-          <div><label className="label">Language</label><select className="input" value={settings.language || 'en'} onChange={(e) => { update('language', e.target.value); setLanguage(e.target.value); }}>{languages.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}</select></div>
-        </Section>
-
-        <Section title="Translation (Microsoft Translator)">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3"><input type="checkbox" id="translate" checked={!!parseInt(settings.translate_enabled)} onChange={(e) => { update('translate_enabled', e.target.checked ? '1' : '0'); setTranslateEnabled(e.target.checked); }} /><label htmlFor="translate">Enable auto-translation</label></div>
-            <p className="text-sm text-slate-500">Requires Microsoft Translator credentials on the server.</p>
-          </div>
-        </Section>
-
         <Section title="Auto numbering (invoice, voucher)">
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label className="label">Invoice prefix</label><input className="input" value={settings.invoice_prefix || 'INV'} onChange={(e) => update('invoice_prefix', e.target.value)} /></div>
@@ -347,17 +186,11 @@ export default function Settings() {
           </div>
         </Section>
 
-        <Section title="Notification alerts">
-          <div className="flex items-center gap-3"><input type="checkbox" id="alerts" checked={!!parseInt(settings.notification_alerts)} onChange={(e) => update('notification_alerts', e.target.checked ? '1' : '0')} /><label htmlFor="alerts">Enable notification alerts</label></div>
-        </Section>
-
-        <Section title="Cloud backup">
+        <Section title="Local Backup &amp; Restore">
           <div className="space-y-3">
-            <div className="flex items-center gap-3"><input type="checkbox" id="backup" checked={!!parseInt(settings.cloud_backup)} onChange={(e) => update('cloud_backup', e.target.checked ? '1' : '0')} /><label htmlFor="backup">Enable cloud backup</label></div>
-            <div><label className="label">Google Drive folder ID (optional)</label><input className="input" value={settings.drive_folder_id || ''} onChange={(e) => update('drive_folder_id', e.target.value)} placeholder="Folder ID or leave blank" /></div>
+            <p className="text-sm text-slate-600">Download or restore a local backup of your database.</p>
             <div className="flex flex-wrap items-center gap-3">
-              <button type="button" onClick={runBackup} disabled={!canBackupRestore || backupLoading} className="btn-secondary flex items-center gap-2"><Download className="w-4 h-4" /> {backupLoading ? 'Creating…' : 'Backup now (download JSON)'}</button>
-              <button type="button" onClick={runCloudBackup} disabled={!canBackupRestore || backupLoading} className="btn-secondary flex items-center gap-2"><Download className="w-4 h-4" /> Upload to Drive</button>
+              <button type="button" onClick={runBackup} disabled={!canBackupRestore || backupLoading} className="btn-secondary flex items-center gap-2"><Download className="w-4 h-4" /> {backupLoading ? 'Creating…' : 'Download Backup'}</button>
               <label htmlFor="settings-restore-file" className={`btn-secondary flex items-center gap-2 cursor-pointer inline-flex ${!canBackupRestore ? 'opacity-50 pointer-events-none' : ''}`}><Upload className="w-4 h-4" /> Choose file</label>
               <input id="settings-restore-file" type="file" accept=".json" className="hidden" onChange={(e) => setRestoreFile(e.target.files?.[0] || null)} />
               <button type="button" onClick={runRestore} disabled={!canBackupRestore || !restoreFile || restoreLoading} className="btn-primary">Restore from backup</button>
@@ -369,49 +202,6 @@ export default function Settings() {
         <Section title="Audit logs">
           <p className="text-sm text-slate-600 mb-3">View user activity and change history.</p>
           <button type="button" onClick={() => setAuditOpen(true)} className="btn-secondary"><FileText className="w-4 h-4" /> View audit logs</button>
-        </Section>
-
-        <Section title="WhatsApp / Email reports (Auto and Manual)">
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex items-center gap-3"><input type="checkbox" id="email_auto" checked={!!parseInt(settings.report_email_auto)} onChange={(e) => update('report_email_auto', e.target.checked ? '1' : '0')} /><label htmlFor="email_auto">Email reports — Auto</label></div>
-              <div className="flex items-center gap-3"><input type="checkbox" id="email_manual" checked={!!parseInt(settings.report_email_manual)} onChange={(e) => update('report_email_manual', e.target.checked ? '1' : '0')} /><label htmlFor="email_manual">Email reports — Manual</label></div>
-              <div className="flex items-center gap-3"><input type="checkbox" id="wa_auto" checked={!!parseInt(settings.report_whatsapp_auto)} onChange={(e) => update('report_whatsapp_auto', e.target.checked ? '1' : '0')} /><label htmlFor="wa_auto">WhatsApp — Auto</label></div>
-              <div className="flex items-center gap-3"><input type="checkbox" id="wa_manual" checked={!!parseInt(settings.report_whatsapp_manual)} onChange={(e) => update('report_whatsapp_manual', e.target.checked ? '1' : '0')} /><label htmlFor="wa_manual">WhatsApp — Manual</label></div>
-            </div>
-            <div><label className="label">Email recipients (comma-separated)</label><input className="input" value={settings.report_email_recipients || ''} onChange={(e) => update('report_email_recipients', e.target.value)} placeholder="a@x.com, b@y.com" /></div>
-            <div><label className="label">WhatsApp numbers (comma-separated)</label><input className="input" value={settings.report_whatsapp_numbers || ''} onChange={(e) => update('report_whatsapp_numbers', e.target.value)} placeholder="+923001234567" /></div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div><label className="label">Auto report time</label><input type="time" className="input" value={settings.report_auto_time || '09:00'} onChange={(e) => update('report_auto_time', e.target.value)} /></div>
-              <div><label className="label">Timezone</label><select className="input" value={settings.report_auto_timezone || 'UTC'} onChange={(e) => update('report_auto_timezone', e.target.value)}>{timezoneOptions.map((tz) => <option key={tz} value={tz}>{tz}</option>)}</select></div>
-              <div><label className="label">Auto report type</label><select className="input" value={settings.report_auto_type || 'summary'} onChange={(e) => update('report_auto_type', e.target.value)}>{REPORT_TYPES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
-              <p className="text-sm font-medium text-slate-700">Send report now (manual)</p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div><label className="label">Report type</label><select className="input" value={reportType} onChange={(e) => setReportType(e.target.value)}>{REPORT_TYPES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
-                <div><label className="label">Channel</label><select className="input" value={sendReportType} onChange={(e) => setSendReportType(e.target.value)}><option value="email">Email</option><option value="whatsapp">WhatsApp</option></select></div>
-                {['daily_sales', 'daily_expenses', 'daily_purchases'].includes(reportType) && <div><label className="label">Date</label><input type="date" className="input" value={reportDate} onChange={(e) => setReportDate(e.target.value)} /></div>}
-                {['monthly_sales', 'monthly_expenses', 'monthly_purchases'].includes(reportType) && (
-                  <>
-                    <div><label className="label">Month</label><select className="input" value={reportMonth} onChange={(e) => setReportMonth(e.target.value)}>{[1,2,3,4,5,6,7,8,9,10,11,12].map((m) => <option key={m} value={m}>{new Date(2000, m - 1).toLocaleString('default', { month: 'long' })}</option>)}</select></div>
-                    <div><label className="label">Year</label><input type="number" min="2020" max="2030" className="input" value={reportYear} onChange={(e) => setReportYear(e.target.value)} /></div>
-                  </>
-                )}
-                {['date_range_sales', 'date_range_purchases', 'inventory', 'category_expenses'].includes(reportType) && (
-                  <>
-                    <div><label className="label">From</label><input type="date" className="input" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} /></div>
-                    <div><label className="label">To</label><input type="date" className="input" value={reportTo} onChange={(e) => setReportTo(e.target.value)} /></div>
-                  </>
-                )}
-                <div><label className="label">Branch (optional)</label><select className="input" value={reportBranchId} onChange={(e) => setReportBranchId(e.target.value)}><option value="">All</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
-              </div>
-              <div className="flex flex-wrap items-center gap-3 pt-1">
-                <button type="button" onClick={sendReport} disabled={sendingReport} className="btn-primary">Send report now</button>
-                {reportSuccess && <span className="text-sm text-green-600">{reportSuccess}</span>}
-              </div>
-            </div>
-          </div>
         </Section>
       </div>
 
