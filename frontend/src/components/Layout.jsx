@@ -61,7 +61,7 @@ export default function Layout() {
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex flex-col w-72 bg-slate-900/95 text-white transform transition-all duration-300 ease-out shadow-xl ${
+        className={`fixed inset-y-0 left-0 z-40 flex flex-col w-72 bg-slate-900 text-white transform transition-all duration-300 ease-out shadow-xl ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -78,11 +78,11 @@ export default function Layout() {
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 py-2.5 pr-3 rounded-xl text-sm font-medium transition-all duration-200 shrink-0 border-l-2 ${
                   location.pathname === path
-                    ? 'bg-primary-500/15 text-primary-400 border-primary-500 pl-[14px] -ml-px'
-                    : 'border-transparent pl-4 text-slate-400 hover:bg-white/5 hover:text-slate-200'
+                    ? 'bg-primary-500/15 text-white border-primary-500 pl-[14px] -ml-px'
+                    : 'border-transparent pl-4 text-white/80 hover:bg-white/5 hover:text-white'
                 }`}
               >
-                <Icon className={`w-4 h-4 shrink-0 ${location.pathname === path ? 'text-primary-400' : ''}`} />
+                <Icon className={`w-4 h-4 shrink-0 ${location.pathname === path ? 'text-white' : 'text-white/70'}`} />
                 <span>{label}</span>
               </Link>
             ))}
