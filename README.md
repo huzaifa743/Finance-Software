@@ -1,6 +1,6 @@
 # Finance Software
 
-Online finance management application with branch management, sales, receivables, purchases, expenses, cash, banks, P&L, staff, assets, inventory, reports, users & security, and system settings.
+Online finance management application with branch management, sales, receivables, purchases, expenses, cash, banks, P&L, staff, inventory, reports, users & security, and system settings.
 
 ## Tech Stack
 
@@ -48,7 +48,6 @@ App runs at `http://localhost:5173`. API requests are proxied to the backend.
 | **Banks** | Multiple accounts, deposits, payments, transfers, ledger, reconciliation |
 | **Profit & Loss** | Branch-wise & consolidated P&L, gross/net profit, expense ratio, monthly/yearly |
 | **Staff & Salary** | Branch-wise staff, fixed salary, commission, advances, deductions, salary processing |
-| **Assets & Loans** | Asset registry, depreciation, loans, EMI tracking, installments |
 | **Inventory** | Products, sale date, quantity sold |
 | **Reports & Dashboard** | Daily/monthly/date-range, branch-wise & consolidated, exports (JSON/CSV) |
 | **Users & Roles** | Super Admin, Finance Manager, Branch Manager, Data Entry, Auditor; login history, activity logs |

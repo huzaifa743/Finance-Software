@@ -25,7 +25,7 @@ const LOCAL_TIMEZONES = (() => {
     return [];
   }
 })();
-const AUDIT_MODULES = ['', 'settings', 'sales', 'expenses', 'purchases', 'branches', 'users', 'expense_categories', 'cash', 'banks', 'receivables', 'inventory', 'pl', 'assets', 'staff'];
+const AUDIT_MODULES = ['', 'settings', 'sales', 'expenses', 'purchases', 'branches', 'users', 'expense_categories', 'cash', 'banks', 'receivables', 'inventory', 'pl', 'staff'];
 
 const SETTINGS_DEFAULTS = {
   financial_year_start: '', financial_year_end: '', currency: 'PKR', country: 'PK', tax_rate: '18',

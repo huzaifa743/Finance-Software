@@ -279,40 +279,6 @@ CREATE TABLE IF NOT EXISTS salary_records (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Assets
-CREATE TABLE IF NOT EXISTS assets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  purchase_date DATE,
-  cost REAL DEFAULT 0,
-  depreciation_rate REAL DEFAULT 0,
-  current_value REAL DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- Loans
-CREATE TABLE IF NOT EXISTS loans (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  principal REAL NOT NULL,
-  interest_rate REAL DEFAULT 0,
-  tenure_months INTEGER,
-  emi_amount REAL,
-  start_date DATE,
-  status TEXT DEFAULT 'active',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS loan_installments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  loan_id INTEGER REFERENCES loans(id),
-  amount REAL NOT NULL,
-  due_date DATE,
-  paid_date DATE,
-  status TEXT DEFAULT 'pending',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Inventory / Product sales
 CREATE TABLE IF NOT EXISTS inventory_sales (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

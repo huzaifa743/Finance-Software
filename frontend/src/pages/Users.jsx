@@ -19,7 +19,7 @@ const ROLES_LIST = [
   { name: 'Auditor', label: 'Auditor (read-only)', desc: 'View only. Login history, activity logs, no create/edit/delete.' },
 ];
 
-const AUDIT_MODULES = ['', 'settings', 'sales', 'expenses', 'purchases', 'branches', 'users', 'expense_categories', 'cash', 'banks', 'receivables', 'inventory', 'pl', 'assets', 'staff'];
+const AUDIT_MODULES = ['', 'settings', 'sales', 'expenses', 'purchases', 'branches', 'users', 'expense_categories', 'cash', 'banks', 'receivables', 'inventory', 'pl', 'staff'];
 
 export default function Users() {
   const { user } = useAuth();

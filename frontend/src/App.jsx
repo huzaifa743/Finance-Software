@@ -12,7 +12,6 @@ import Cash from './pages/Cash';
 import Banks from './pages/Banks';
 import PL from './pages/PL';
 import Staff from './pages/Staff';
-import Assets from './pages/Assets';
 import Inventory from './pages/Inventory';
 import Reports from './pages/Reports';
 import Users from './pages/Users';
@@ -47,7 +46,6 @@ export default function App() {
         <Route path="banks" element={<Banks />} />
         <Route path="pl" element={<PL />} />
         <Route path="staff" element={<Staff />} />
-        <Route path="assets" element={<Assets />} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="reports" element={<Reports />} />
         <Route path="users" element={<Users />} />

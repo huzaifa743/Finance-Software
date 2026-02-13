@@ -380,7 +380,7 @@ async function sendWhatsAppText(recipients, message) {
 }
 
 function buildBackupPayload() {
-  const tables = ['roles', 'branches', 'system_settings', 'expense_categories', 'banks', 'suppliers', 'customers', 'products', 'sales', 'sale_attachments', 'receivables', 'receivable_recoveries', 'purchases', 'expenses', 'expense_attachments', 'cash_entries', 'bank_transactions', 'staff', 'salary_records', 'assets', 'loans', 'loan_installments', 'inventory_sales', 'payments', 'activity_logs', 'login_history'];
+  const tables = ['roles', 'branches', 'system_settings', 'expense_categories', 'banks', 'suppliers', 'customers', 'products', 'sales', 'sale_attachments', 'receivables', 'receivable_recoveries', 'purchases', 'expenses', 'expense_attachments', 'cash_entries', 'bank_transactions', 'staff', 'salary_records', 'inventory_sales', 'payments', 'activity_logs', 'login_history'];
   const backup = { exportedAt: new Date().toISOString(), tables: {} };
   const users = db.prepare('SELECT id, email, name, role_id, branch_id, is_active, created_at, updated_at FROM users').all();
   backup.tables.users = users;
@@ -440,15 +440,15 @@ router.post('/backup/cloud', authenticate, requireRole('Super Admin', 'Finance M
 
 const RESTORE_DELETE_ORDER = [
   'login_history', 'activity_logs', 'sale_attachments', 'receivable_recoveries', 'expense_attachments',
-  'bank_transactions', 'salary_records', 'loan_installments', 'payments', 'receivables', 'purchases',
+  'bank_transactions', 'salary_records', 'payments', 'receivables', 'purchases',
   'expenses', 'cash_entries', 'inventory_sales', 'sales', 'staff', 'branches', 'suppliers',
-  'customers', 'products', 'expense_categories', 'banks', 'assets', 'loans', 'system_settings'
+  'customers', 'products', 'expense_categories', 'banks', 'system_settings'
 ];
 const RESTORE_INSERT_ORDER = [
   'branches', 'expense_categories', 'banks', 'suppliers', 'customers', 'products',
   'system_settings', 'sales', 'sale_attachments', 'receivables', 'receivable_recoveries',
   'purchases', 'expenses', 'expense_attachments', 'cash_entries', 'bank_transactions', 'staff',
-  'salary_records', 'assets', 'loans', 'loan_installments', 'inventory_sales', 'payments',
+  'salary_records', 'inventory_sales', 'payments',
   'activity_logs', 'login_history'
 ];
 
