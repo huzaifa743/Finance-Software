@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import nodemailer from 'nodemailer';
-import { TranslationServiceClient } from '@google-cloud/translate';
 import { google } from 'googleapis';
 import db from '../db/database.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
@@ -48,36 +47,34 @@ const getCountries = () => {
   return list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 };
 
-const translateCache = new Map();
-const getTranslateClient = () => {
-  const projectId = process.env.GOOGLE_PROJECT_ID;
-  if (!projectId || !process.env.GOOGLE_APPLICATION_CREDENTIALS) return null;
-  return { client: new TranslationServiceClient(), projectId };
+const getTranslateConfig = () => {
+  const key = process.env.MICROSOFT_TRANSLATOR_KEY;
+  const region = process.env.MICROSOFT_TRANSLATOR_REGION || '';
+  if (!key) return null;
+  return { key, region };
 };
 
 const translateTexts = async (texts, target) => {
   if (!target || target === 'en') return texts;
-  const keyPrefix = `${target}::`;
-  const pending = [];
-  const results = texts.map((t) => {
-    const key = keyPrefix + t;
-    if (translateCache.has(key)) return translateCache.get(key);
-    pending.push(t);
-    return null;
-  });
-  if (!pending.length) return results;
-  const tc = getTranslateClient();
+  const tc = getTranslateConfig();
   if (!tc) return texts;
-  const location = process.env.GOOGLE_TRANSLATE_LOCATION || 'global';
-  const [response] = await tc.client.translateText({
-    parent: `projects/${tc.projectId}/locations/${location}`,
-    contents: pending,
-    mimeType: 'text/plain',
-    targetLanguageCode: target,
+  const url = `https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&to=${encodeURIComponent(target)}`;
+  const headers = {
+    'Content-Type': 'application/json',
+    'Ocp-Apim-Subscription-Key': tc.key,
+  };
+  if (tc.region) headers['Ocp-Apim-Subscription-Region'] = tc.region;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(texts.map((t) => ({ Text: t }))),
   });
-  const translated = response.translations?.map((t) => t.translatedText) || [];
-  pending.forEach((t, i) => translateCache.set(keyPrefix + t, translated[i] || t));
-  return texts.map((t) => translateCache.get(keyPrefix + t) || t);
+  const data = await resp.json().catch(() => null);
+  if (!resp.ok) {
+    const msg = data?.error?.message || resp.statusText || 'Translate failed';
+    throw new Error(msg);
+  }
+  return (data || []).map((item, idx) => item?.translations?.[0]?.text || texts[idx]);
 };
 
 router.get('/', authenticate, (req, res) => {
@@ -97,6 +94,26 @@ router.get('/currencies', authenticate, (req, res) => {
 
 router.get('/languages', authenticate, (req, res) => {
   res.json(getLanguages());
+});
+
+router.get('/tax-rate', authenticate, async (req, res) => {
+  try {
+    const country = String(req.query.country || '').toUpperCase();
+    if (!country) return res.status(400).json({ error: 'country required' });
+    const url = `https://api.vatcomply.com/rates?country_code=${encodeURIComponent(country)}`;
+    const resp = await fetch(url);
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) return res.status(500).json({ error: 'Tax provider error.' });
+    const rate =
+      data?.rates?.standard ??
+      data?.rate ??
+      data?.vat?.standard ??
+      data?.periods?.[0]?.rates?.standard ??
+      null;
+    res.json({ rate: rate != null ? Number(rate) : null, source: 'vatcomply' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 router.post('/translate', async (req, res) => {
@@ -353,28 +370,35 @@ function reportToText(data) {
   return `${header}${total}\nRows: ${rows.length}\n${preview}`.trim();
 }
 
+function normalizeWhatsAppNumber(num) {
+  const n = String(num || '').trim();
+  if (!n) return '';
+  return n.startsWith('whatsapp:') ? n : `whatsapp:${n}`;
+}
+
 async function sendWhatsAppText(recipients, message) {
-  const token = process.env.WHATSAPP_TOKEN;
-  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!token || !phoneId) {
-    throw new Error('WhatsApp not configured. Set WHATSAPP_TOKEN and WHATSAPP_PHONE_NUMBER_ID in .env.');
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_WHATSAPP_FROM;
+  if (!sid || !token || !from) {
+    throw new Error('WhatsApp not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM in .env.');
   }
-  const url = `https://graph.facebook.com/v19.0/${phoneId}/messages`;
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
+  const auth = Buffer.from(`${sid}:${token}`).toString('base64');
   for (const to of recipients) {
-    const payload = {
-      messaging_product: 'whatsapp',
-      to,
-      type: 'text',
-      text: { body: message },
-    };
+    const body = new URLSearchParams({
+      From: normalizeWhatsAppNumber(from),
+      To: normalizeWhatsAppNumber(to),
+      Body: message,
+    });
     const resp = await fetch(url, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
     });
     if (!resp.ok) {
       const data = await resp.json().catch(() => ({}));
-      throw new Error(data.error?.message || `WhatsApp send failed (${resp.status})`);
+      throw new Error(data?.message || `WhatsApp send failed (${resp.status})`);
     }
   }
 }

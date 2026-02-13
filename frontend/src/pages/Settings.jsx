@@ -273,10 +273,16 @@ export default function Settings() {
     }
   };
 
-  const onCountryChange = (code) => {
+  const onCountryChange = async (code) => {
     update('country', code);
-    const c = countries.find((x) => x.code === code);
-    if (c && c.taxRate != null) update('tax_rate', String(c.taxRate));
+    try {
+      const res = await api.get(`/settings/tax-rate?country=${encodeURIComponent(code)}`);
+      if (res?.rate != null && !Number.isNaN(Number(res.rate))) {
+        update('tax_rate', String(res.rate));
+      }
+    } catch {
+      // Keep current tax rate if the provider fails.
+    }
   };
 
   if (loading) return <div className="flex items-center justify-center py-20"><div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" /></div>;
@@ -325,10 +331,10 @@ export default function Settings() {
           <div><label className="label">Language</label><select className="input" value={settings.language || 'en'} onChange={(e) => { update('language', e.target.value); setLanguage(e.target.value); }}>{languages.map((x) => <option key={x.code} value={x.code}>{x.name}</option>)}</select></div>
         </Section>
 
-        <Section title="Translation (Google)">
+        <Section title="Translation (Microsoft Translator)">
           <div className="space-y-2">
             <div className="flex items-center gap-3"><input type="checkbox" id="translate" checked={!!parseInt(settings.translate_enabled)} onChange={(e) => { update('translate_enabled', e.target.checked ? '1' : '0'); setTranslateEnabled(e.target.checked); }} /><label htmlFor="translate">Enable auto-translation</label></div>
-            <p className="text-sm text-slate-500">Requires Google Translate credentials on the server.</p>
+            <p className="text-sm text-slate-500">Requires Microsoft Translator credentials on the server.</p>
           </div>
         </Section>
 
@@ -374,7 +380,7 @@ export default function Settings() {
               <div className="flex items-center gap-3"><input type="checkbox" id="wa_manual" checked={!!parseInt(settings.report_whatsapp_manual)} onChange={(e) => update('report_whatsapp_manual', e.target.checked ? '1' : '0')} /><label htmlFor="wa_manual">WhatsApp — Manual</label></div>
             </div>
             <div><label className="label">Email recipients (comma-separated)</label><input className="input" value={settings.report_email_recipients || ''} onChange={(e) => update('report_email_recipients', e.target.value)} placeholder="a@x.com, b@y.com" /></div>
-            <div><label className="label">WhatsApp numbers (comma-separated)</label><input className="input" value={settings.report_whatsapp_numbers || ''} onChange={(e) => update('report_whatsapp_numbers', e.target.value)} placeholder="+92 300 1234567" /></div>
+            <div><label className="label">WhatsApp numbers (comma-separated)</label><input className="input" value={settings.report_whatsapp_numbers || ''} onChange={(e) => update('report_whatsapp_numbers', e.target.value)} placeholder="+923001234567" /></div>
             <div className="grid gap-4 sm:grid-cols-3">
               <div><label className="label">Auto report time</label><input type="time" className="input" value={settings.report_auto_time || '09:00'} onChange={(e) => update('report_auto_time', e.target.value)} /></div>
               <div><label className="label">Timezone</label><select className="input" value={settings.report_auto_timezone || 'UTC'} onChange={(e) => update('report_auto_timezone', e.target.value)}>{timezoneOptions.map((tz) => <option key={tz} value={tz}>{tz}</option>)}</select></div>
