@@ -24,4 +24,15 @@ if (!hasUsersTable) {
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+const ensureColumnExists = (tableName, columnName, columnDef) => {
+	const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+	const hasColumn = columns.some(col => col.name === columnName);
+	if (!hasColumn) {
+		db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef}`).run();
+	}
+};
+
+// Backfill missing columns in existing databases.
+ensureColumnExists('purchases', 'due_date', 'DATE');
+
 export default db;
