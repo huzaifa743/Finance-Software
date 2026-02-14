@@ -6,8 +6,8 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const dbPath = join(__dirname, '../../data/finance.db');
-const dataDir = join(__dirname, '../../data');
+const dbPath = process.env.DB_PATH || join(__dirname, '../../data/finance.db');
+const dataDir = dirname(dbPath);
 if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
 const db = new Database(dbPath);

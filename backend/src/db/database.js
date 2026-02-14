@@ -25,6 +25,11 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 const ensureColumnExists = (tableName, columnName, columnDef) => {
+	const table = db
+		.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?")
+		.get(tableName);
+	if (!table) return;
+
 	const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
 	const hasColumn = columns.some(col => col.name === columnName);
 	if (!hasColumn) {
