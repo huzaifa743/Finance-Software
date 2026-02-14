@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import { Plus, Pencil, BookOpen } from 'lucide-react';
+import { Plus, Pencil, BookOpen, Search } from 'lucide-react';
 
 export default function Suppliers() {
   const [list, setList] = useState([]);
@@ -101,8 +101,12 @@ export default function Suppliers() {
 
       <div className="card p-4">
         <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+            <Search className="w-4 h-4 text-slate-500" />
+            <span>Search</span>
+          </div>
           <input
-            className="input w-72"
+            className="input w-full md:w-[420px]"
             placeholder="Search suppliers by name, contact, address"
             value={supplierQuery}
             onChange={(e) => setSupplierQuery(e.target.value)}
@@ -146,9 +150,13 @@ export default function Suppliers() {
             <button onClick={() => { setLedgerSupplier(null); setLedger(null); }} className="btn-secondary text-xs">Close</button>
           </div>
           <p className="text-sm text-slate-600 mt-2">Total purchases: {fmt(ledger.totalPurchases)} • Total paid: {fmt(ledger.totalPaid)} • Balance: {fmt(ledger.balance)}</p>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+              <Search className="w-4 h-4 text-slate-500" />
+              <span>Search</span>
+            </div>
             <input
-              className="input w-full md:w-96"
+              className="input w-full md:w-[520px]"
               placeholder="Search ledger by date, invoice, amount, remarks"
               value={ledgerQuery}
               onChange={(e) => setLedgerQuery(e.target.value)}
