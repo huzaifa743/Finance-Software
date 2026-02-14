@@ -38,6 +38,22 @@ router.patch('/suppliers/:id', authenticate, requireNotAuditor, logActivity('upd
   }
 });
 
+router.delete('/suppliers/:id', authenticate, requireRole('Super Admin', 'Finance Manager'), logActivity('delete', 'suppliers', req => req.params.id), (req, res) => {
+  try {
+    const { id } = req.params;
+    const purchaseCount = db.prepare('SELECT COUNT(1) as cnt FROM purchases WHERE supplier_id = ?').get(id)?.cnt || 0;
+    const paymentCount = db.prepare("SELECT COUNT(1) as cnt FROM payments WHERE reference_type = 'supplier' AND reference_id = ?").get(id)?.cnt || 0;
+    if (purchaseCount > 0 || paymentCount > 0) {
+      return res.status(409).json({ error: 'Cannot delete supplier with purchases or payments.' });
+    }
+    const r = db.prepare('DELETE FROM suppliers WHERE id = ?').run(id);
+    if (r.changes === 0) return res.status(404).json({ error: 'Supplier not found.' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.get('/suppliers/:id/ledger', authenticate, (req, res) => {
   const { id } = req.params;
   const purchases = db.prepare(`

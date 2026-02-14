@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import { Plus, Pencil, BookOpen, Search } from 'lucide-react';
+import { Plus, Pencil, BookOpen, Search, Trash2 } from 'lucide-react';
 
 export default function Suppliers() {
   const [list, setList] = useState([]);
@@ -46,6 +46,21 @@ export default function Suppliers() {
       else await api.patch(`/purchases/suppliers/${editing.id}`, form);
       setModal(null);
       setEditing(null);
+      load();
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
+  const remove = async (s) => {
+    if (!confirm(`Delete supplier "${s.name}"?`)) return;
+    setErr('');
+    try {
+      await api.delete(`/purchases/suppliers/${s.id}`);
+      if (ledgerSupplier?.id === s.id) {
+        setLedgerSupplier(null);
+        setLedger(null);
+      }
       load();
     } catch (e) {
       setErr(e.message);
@@ -134,6 +149,7 @@ export default function Suppliers() {
                   <td className="px-4 py-3 text-right">
                     <button onClick={() => setLedgerSupplier(s)} className="btn-secondary text-xs mr-2"><BookOpen className="w-4 h-4" /> Ledger</button>
                     <button onClick={() => openEdit(s)} className="p-1.5 text-slate-500 hover:text-primary-600"><Pencil className="w-4 h-4" /></button>
+                    <button onClick={() => remove(s)} className="p-1.5 text-slate-500 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
                   </td>
                 </tr>
               ))}
