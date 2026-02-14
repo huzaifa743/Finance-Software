@@ -96,7 +96,21 @@ router.patch('/:id', authenticate, requireRole('Super Admin', 'Finance Manager')
 
 router.delete('/:id', authenticate, requireRole('Super Admin'), logActivity('delete', 'branches', req => req.params.id), (req, res) => {
   try {
-    const r = db.prepare('DELETE FROM branches WHERE id = ?').run(req.params.id);
+    const { id } = req.params;
+    const tables = [
+      ['sales', 'branch_id'],
+      ['expenses', 'branch_id'],
+      ['purchases', 'branch_id'],
+      ['cash_entries', 'branch_id'],
+      ['inventory_sales', 'branch_id'],
+      ['receivables', 'branch_id'],
+      ['staff', 'branch_id'],
+    ];
+    for (const [table, col] of tables) {
+      const count = db.prepare(`SELECT COUNT(1) as cnt FROM ${table} WHERE ${col} = ?`).get(id)?.cnt || 0;
+      if (count > 0) return res.status(409).json({ error: `Cannot delete branch with existing ${table.replace(/_/g, ' ')}. Delete them first.` });
+    }
+    const r = db.prepare('DELETE FROM branches WHERE id = ?').run(id);
     if (r.changes === 0) return res.status(404).json({ error: 'Branch not found.' });
     res.json({ ok: true });
   } catch (e) {
