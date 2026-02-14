@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Pencil, History, Activity, Download, Upload, X } from 'lucide-react';
+import { Plus, Pencil, History, Activity, X } from 'lucide-react';
 
 const ROLE_DISPLAY = {
   'Super Admin': 'Super Admin (Owner)',
@@ -10,14 +10,6 @@ const ROLE_DISPLAY = {
   'Data Entry Operator': 'Data Entry Operator',
   'Auditor': 'Auditor (read-only)',
 };
-
-const ROLES_LIST = [
-  { name: 'Super Admin', label: 'Super Admin (Owner)', desc: 'Full access. Manage users, settings, backup & restore.' },
-  { name: 'Finance Manager', label: 'Finance Manager', desc: 'Branches, sales, purchases, expenses, bank, cash, reports.' },
-  { name: 'Branch Manager', label: 'Branch Manager', desc: 'Branch-scoped sales, expenses, cash.' },
-  { name: 'Data Entry Operator', label: 'Data Entry Operator', desc: 'Sales, expenses, data entry.' },
-  { name: 'Auditor', label: 'Auditor (read-only)', desc: 'View only. Login history, activity logs, no create/edit/delete.' },
-];
 
 const AUDIT_MODULES = ['', 'settings', 'sales', 'expenses', 'purchases', 'branches', 'users', 'expense_categories', 'cash', 'banks', 'receivables', 'inventory', 'pl', 'staff'];
 
@@ -34,13 +26,9 @@ export default function Users() {
   const [activityLogs, setActivityLogs] = useState([]);
   const [logsOpen, setLogsOpen] = useState(null);
   const [auditModule, setAuditModule] = useState('');
-  const [restoreFile, setRestoreFile] = useState(null);
-  const [restoreLoading, setRestoreLoading] = useState(false);
-  const [backupLoading, setBackupLoading] = useState(false);
 
   const isAuditor = user?.role_name === 'Auditor';
   const canMutate = !isAuditor;
-  const canBackupRestore = user?.role_name === 'Super Admin' || user?.role_name === 'Finance Manager';
 
   const load = () => api.get('/auth/users').then(setUsers).catch((e) => setErr(e.message));
 
@@ -91,54 +79,13 @@ export default function Users() {
     setLogsOpen('activity');
   };
 
-  const runBackup = async () => {
-    setErr('');
-    setBackupLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/settings/backup', { method: 'GET', headers: { Authorization: token ? `Bearer ${token}` : '' } });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || res.statusText || 'Backup failed'); }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `finance-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBackupLoading(false);
-    }
-  };
-
-  const runRestore = async () => {
-    if (!restoreFile) { setErr('Select a backup JSON file first.'); return; }
-    setErr('');
-    setRestoreLoading(true);
-    try {
-      const text = await restoreFile.text();
-      const backup = JSON.parse(text);
-      const r = await api.post('/settings/restore', backup);
-      setRestoreFile(null);
-      const el = document.getElementById('restore-file');
-      if (el) el.value = '';
-      load();
-      setErr('');
-      alert(r.message || 'Restore complete.');
-    } catch (e) {
-      setErr(e.message || 'Restore failed.');
-    } finally {
-      setRestoreLoading(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">User Roles &amp; Security</h1>
-          <p className="text-slate-500 mt-1">Data protection &amp; control — roles, permissions, login history, activity logs, data lock, backup &amp; restore</p>
+          <h1 className="text-2xl font-bold text-slate-900">Users &amp; Roles</h1>
+          <p className="text-slate-500 mt-1">Manage users, roles, login history, and activity logs</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={openLoginHistory} className="btn-secondary"><History className="w-4 h-4" /> Login History</button>
@@ -148,30 +95,6 @@ export default function Users() {
       </div>
 
       {err && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">{err}</div>}
-
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="text-base font-semibold text-slate-900 mb-3">Roles</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {ROLES_LIST.map((r) => (
-            <div key={r.name} className="rounded-lg border border-slate-200 p-3">
-              <div className="font-medium text-slate-900">{r.label}</div>
-              <div className="text-sm text-slate-500 mt-1">{r.desc}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="text-base font-semibold text-slate-900 mb-3">Backup &amp; Restore</h3>
-        <p className="text-sm text-slate-600 mb-4">Download a JSON backup or restore from a previously saved backup. Users and roles are not overwritten on restore.</p>
-        <div className="flex flex-wrap items-center gap-4">
-          <button type="button" onClick={runBackup} disabled={!canBackupRestore || backupLoading} className="btn-secondary flex items-center gap-2"><Download className="w-4 h-4" /> {backupLoading ? 'Creating…' : 'Backup now'}</button>
-          <label htmlFor="restore-file" className={`btn-secondary flex items-center gap-2 cursor-pointer inline-flex ${!canBackupRestore ? 'opacity-50 pointer-events-none' : ''}`}><Upload className="w-4 h-4" /> Choose file</label>
-          <input id="restore-file" type="file" accept=".json" className="hidden" onChange={(e) => setRestoreFile(e.target.files?.[0] || null)} />
-          <button type="button" onClick={runRestore} disabled={!canBackupRestore || !restoreFile || restoreLoading} className="btn-primary">Restore from backup</button>
-          {restoreFile && <span className="text-sm text-slate-500">{restoreFile.name}</span>}
-        </div>
-      </div>
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
