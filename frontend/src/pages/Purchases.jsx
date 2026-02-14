@@ -95,8 +95,8 @@ export default function Purchases() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Purchase & Supplier Management</h1>
-          <p className="text-slate-500 mt-1">Suppliers, invoices, branch-wise purchases, payments</p>
+          <h1 className="text-2xl font-bold text-slate-900">Purchase Management</h1>
+          <p className="text-slate-500 mt-1">Invoices, branch-wise purchases, payments</p>
         </div>
         <div className="flex gap-2">
           <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Purchase</button>
