@@ -7,6 +7,7 @@ import Branches from './pages/Branches';
 import Sales from './pages/Sales';
 import Receivables from './pages/Receivables';
 import Purchases from './pages/Purchases';
+import Suppliers from './pages/Suppliers';
 import Expenses from './pages/Expenses';
 import Cash from './pages/Cash';
 import Banks from './pages/Banks';
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="sales" element={<Sales />} />
         <Route path="receivables" element={<Receivables />} />
         <Route path="purchases" element={<Purchases />} />
+        <Route path="suppliers" element={<Suppliers />} />
         <Route path="expenses" element={<Expenses />} />
         <Route path="cash" element={<Cash />} />
         <Route path="banks" element={<Banks />} />

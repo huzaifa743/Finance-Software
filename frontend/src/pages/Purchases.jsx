@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { Plus, Pencil, Trash2, Users, AlertTriangle, BookOpen } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 
 export default function Purchases() {
   const [list, setList] = useState([]);
@@ -14,11 +14,6 @@ export default function Purchases() {
   const [filters, setFilters] = useState({ supplier_id: '', branch_id: '', from: '', to: '' });
   const [form, setForm] = useState({ supplier_id: '', branch_id: '', invoice_no: '', purchase_date: '', due_date: '', total_amount: '', paid_amount: 0, remarks: '' });
   const [payForm, setPayForm] = useState({ purchase_id: '', supplier_id: '', amount: '', payment_date: '', mode: 'cash' });
-  const [suppliersModal, setSuppliersModal] = useState(false);
-  const [supplierForm, setSupplierForm] = useState({ name: '', contact: '', address: '' });
-  const [editingSupplier, setEditingSupplier] = useState(null);
-  const [ledgerModal, setLedgerModal] = useState(null);
-  const [ledger, setLedger] = useState(null);
 
   const load = () => {
     const q = new URLSearchParams();
@@ -93,35 +88,6 @@ export default function Purchases() {
     }
   };
 
-  const saveSupplier = async (e) => {
-    e.preventDefault();
-    setErr('');
-    try {
-      if (editingSupplier) await api.patch(`/purchases/suppliers/${editingSupplier.id}`, supplierForm);
-      else await api.post('/purchases/suppliers', supplierForm);
-      setEditingSupplier(null);
-      setSupplierForm({ name: '', contact: '', address: '' });
-      loadSuppliers();
-    } catch (e) {
-      setErr(e.message);
-    }
-  };
-
-  const openEditSupplier = (s) => {
-    setEditingSupplier(s);
-    setSupplierForm({ name: s.name, contact: s.contact || '', address: s.address || '' });
-  };
-
-  const openLedger = async (s) => {
-    setLedgerModal(s);
-    setLedger(null);
-    try {
-      const d = await api.get(`/purchases/suppliers/${s.id}/ledger`);
-      setLedger(d);
-    } catch (e) {
-      setErr(e.message);
-    }
-  };
 
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
@@ -133,7 +99,6 @@ export default function Purchases() {
           <p className="text-slate-500 mt-1">Suppliers, invoices, branch-wise purchases, payments</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => { setSuppliersModal(true); setEditingSupplier(null); setSupplierForm({ name: '', contact: '', address: '' }); }} className="btn-secondary"><Users className="w-4 h-4" /> Manage Suppliers</button>
           <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Purchase</button>
         </div>
       </div>
@@ -255,97 +220,6 @@ export default function Purchases() {
         </div>
       )}
 
-      {suppliersModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Manage Suppliers</h2>
-            <form onSubmit={saveSupplier} className="space-y-4 mb-6">
-              <div><label className="label">Name *</label><input className="input" value={supplierForm.name} onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })} required /></div>
-              <div><label className="label">Contact</label><input className="input" value={supplierForm.contact} onChange={(e) => setSupplierForm({ ...supplierForm, contact: e.target.value })} /></div>
-              <div><label className="label">Address</label><input className="input" value={supplierForm.address} onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })} /></div>
-              <div className="flex gap-3"><button type="submit" className="btn-primary">{editingSupplier ? 'Update' : 'Add'}</button>{editingSupplier && <button type="button" onClick={() => { setEditingSupplier(null); setSupplierForm({ name: '', contact: '', address: '' }); }} className="btn-secondary">Cancel</button>}</div>
-            </form>
-            <div className="border-t border-slate-200 pt-4">
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {suppliers.map((s) => (
-                  <div key={s.id} className="flex items-center justify-between py-2 border-b border-slate-100">
-                    <span className="font-medium">{s.name}</span>
-                    <div className="flex items-center gap-3">
-                      <button type="button" onClick={() => openLedger(s)} className="text-sm text-slate-600 hover:text-primary-600 flex items-center gap-1"><BookOpen className="w-4 h-4" /> Ledger</button>
-                      <button type="button" onClick={() => openEditSupplier(s)} className="text-sm text-primary-600 hover:underline">Edit</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <button onClick={() => setSuppliersModal(false)} className="btn-secondary mt-4">Close</button>
-          </div>
-        </div>
-      )}
-
-      {ledgerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="card w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Supplier Ledger — {ledgerModal.name}</h2>
-            {!ledger ? (
-              <p className="text-sm text-slate-500">Loading…</p>
-            ) : (
-              <>
-                <p className="text-sm text-slate-600 mb-4">Total purchases: {fmt(ledger.totalPurchases)} • Total paid: {fmt(ledger.totalPaid)} • Balance: {fmt(ledger.balance)}</p>
-                <div className="overflow-x-auto mb-4">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-200">
-                      <tr>
-                        <th className="text-left px-3 py-2">Date</th>
-                        <th className="text-left px-3 py-2">Branch</th>
-                        <th className="text-left px-3 py-2">Invoice</th>
-                        <th className="text-right px-3 py-2">Total</th>
-                        <th className="text-right px-3 py-2">Paid</th>
-                        <th className="text-right px-3 py-2">Balance</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {(ledger.purchases || []).map((p) => (
-                        <tr key={p.id}>
-                          <td className="px-3 py-2">{p.purchase_date}</td>
-                          <td className="px-3 py-2">{p.branch_name || '–'}</td>
-                          <td className="px-3 py-2">{p.invoice_no || '–'}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(p.total_amount)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(p.paid_amount)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(p.balance)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-200">
-                      <tr>
-                        <th className="text-left px-3 py-2">Payment Date</th>
-                        <th className="text-left px-3 py-2">Mode</th>
-                        <th className="text-right px-3 py-2">Amount</th>
-                        <th className="text-left px-3 py-2">Remarks</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {(ledger.payments || []).map((p) => (
-                        <tr key={p.id}>
-                          <td className="px-3 py-2">{p.payment_date}</td>
-                          <td className="px-3 py-2">{p.mode}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(p.amount)}</td>
-                          <td className="px-3 py-2">{p.remarks || '–'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-            <button onClick={() => { setLedgerModal(null); setLedger(null); }} className="btn-secondary mt-4">Close</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
