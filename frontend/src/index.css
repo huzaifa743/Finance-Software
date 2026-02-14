@@ -38,7 +38,7 @@ body.login-bg {
     @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
   }
   .input {
-    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500;
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500;
   }
   .card {
     @apply rounded-xl border border-slate-200 bg-white shadow-sm;
