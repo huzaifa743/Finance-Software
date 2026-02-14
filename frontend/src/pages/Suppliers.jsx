@@ -11,6 +11,8 @@ export default function Suppliers() {
   const [form, setForm] = useState({ name: '', contact: '', address: '' });
   const [ledgerSupplier, setLedgerSupplier] = useState(null);
   const [ledger, setLedger] = useState(null);
+  const [supplierQuery, setSupplierQuery] = useState('');
+  const [ledgerQuery, setLedgerQuery] = useState('');
 
   const load = () => api.get('/purchases/suppliers').then(setList).catch((e) => setErr(e.message));
 
@@ -51,6 +53,39 @@ export default function Suppliers() {
   };
 
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const normalize = (v) => String(v || '').toLowerCase();
+  const supplierNeedle = supplierQuery.trim().toLowerCase();
+  const ledgerNeedle = ledgerQuery.trim().toLowerCase();
+  const filteredList = supplierNeedle
+    ? list.filter((s) => {
+        const hay = `${s.name} ${s.contact || ''} ${s.address || ''}`.toLowerCase();
+        return hay.includes(supplierNeedle);
+      })
+    : list;
+  const filteredPurchases = ledgerNeedle
+    ? (ledger?.purchases || []).filter((p) => {
+        const hay = [
+          p.purchase_date,
+          p.branch_name,
+          p.invoice_no,
+          p.total_amount,
+          p.paid_amount,
+          p.balance,
+        ].map(normalize).join(' ');
+        return hay.includes(ledgerNeedle);
+      })
+    : (ledger?.purchases || []);
+  const filteredPayments = ledgerNeedle
+    ? (ledger?.payments || []).filter((p) => {
+        const hay = [
+          p.payment_date,
+          p.mode,
+          p.amount,
+          p.remarks,
+        ].map(normalize).join(' ');
+        return hay.includes(ledgerNeedle);
+      })
+    : (ledger?.payments || []);
 
   return (
     <div className="space-y-6">
@@ -64,6 +99,17 @@ export default function Suppliers() {
 
       {err && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">{err}</div>}
 
+      <div className="card p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            className="input w-72"
+            placeholder="Search suppliers by name, contact, address"
+            value={supplierQuery}
+            onChange={(e) => setSupplierQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -76,7 +122,7 @@ export default function Suppliers() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {list.map((s) => (
+              {filteredList.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium">{s.name}</td>
                   <td className="px-4 py-3">{s.contact || '–'}</td>
@@ -90,7 +136,7 @@ export default function Suppliers() {
             </tbody>
           </table>
         </div>
-        {!list.length && !loading && <p className="p-8 text-center text-slate-500">No suppliers.</p>}
+        {!filteredList.length && !loading && <p className="p-8 text-center text-slate-500">No suppliers.</p>}
       </div>
 
       {ledgerSupplier && ledger && (
@@ -100,6 +146,14 @@ export default function Suppliers() {
             <button onClick={() => { setLedgerSupplier(null); setLedger(null); }} className="btn-secondary text-xs">Close</button>
           </div>
           <p className="text-sm text-slate-600 mt-2">Total purchases: {fmt(ledger.totalPurchases)} • Total paid: {fmt(ledger.totalPaid)} • Balance: {fmt(ledger.balance)}</p>
+          <div className="mt-4">
+            <input
+              className="input w-full md:w-96"
+              placeholder="Search ledger by date, invoice, amount, remarks"
+              value={ledgerQuery}
+              onChange={(e) => setLedgerQuery(e.target.value)}
+            />
+          </div>
           <div className="overflow-x-auto mt-4">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
@@ -113,7 +167,7 @@ export default function Suppliers() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {(ledger.purchases || []).map((p) => (
+                {filteredPurchases.map((p) => (
                   <tr key={p.id}>
                     <td className="px-3 py-2">{p.purchase_date}</td>
                     <td className="px-3 py-2">{p.branch_name || '–'}</td>
@@ -125,6 +179,7 @@ export default function Suppliers() {
                 ))}
               </tbody>
             </table>
+            {!filteredPurchases.length && <p className="p-3 text-sm text-slate-500">No purchases found.</p>}
           </div>
           <div className="overflow-x-auto mt-4">
             <table className="w-full text-sm">
@@ -137,7 +192,7 @@ export default function Suppliers() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {(ledger.payments || []).map((p) => (
+                {filteredPayments.map((p) => (
                   <tr key={p.id}>
                     <td className="px-3 py-2">{p.payment_date}</td>
                     <td className="px-3 py-2">{p.mode}</td>
@@ -147,6 +202,7 @@ export default function Suppliers() {
                 ))}
               </tbody>
             </table>
+            {!filteredPayments.length && <p className="p-3 text-sm text-slate-500">No payments found.</p>}
           </div>
         </div>
       )}
