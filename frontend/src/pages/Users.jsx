@@ -11,7 +11,7 @@ const ROLE_DISPLAY = {
   'Auditor': 'Auditor (read-only)',
 };
 
-const AUDIT_MODULES = ['', 'settings', 'sales', 'expenses', 'purchases', 'branches', 'users', 'expense_categories', 'cash', 'banks', 'receivables', 'inventory', 'pl', 'staff'];
+const AUDIT_MODULES = ['', 'settings', 'sales', 'purchases', 'branches', 'users', 'banks', 'receivables', 'inventory', 'pl', 'staff'];
 
 export default function Users() {
   const { user } = useAuth();

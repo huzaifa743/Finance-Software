@@ -13,7 +13,7 @@ router.get('/', authenticate, (req, res) => {
 });
 
 function buildBackupPayload() {
-  const tables = ['roles', 'branches', 'system_settings', 'expense_categories', 'banks', 'suppliers', 'customers', 'products', 'sales', 'sale_attachments', 'receivables', 'receivable_recoveries', 'purchases', 'expenses', 'expense_attachments', 'cash_entries', 'bank_transactions', 'staff', 'salary_records', 'inventory_sales', 'payments', 'activity_logs', 'login_history'];
+  const tables = ['roles', 'branches', 'system_settings', 'banks', 'suppliers', 'customers', 'products', 'sales', 'sale_attachments', 'receivables', 'receivable_recoveries', 'purchases', 'purchase_attachments', 'rent_bills', 'rent_bill_attachments', 'bank_transactions', 'staff', 'salary_records', 'inventory_sales', 'payments', 'activity_logs', 'login_history'];
   const backup = { exportedAt: new Date().toISOString(), tables: {} };
   const users = db.prepare('SELECT id, email, name, role_id, branch_id, is_active, created_at, updated_at FROM users').all();
   backup.tables.users = users;
@@ -42,15 +42,17 @@ router.get('/backup', authenticate, requireRole('Super Admin', 'Finance Manager'
 });
 
 const RESTORE_DELETE_ORDER = [
-  'login_history', 'activity_logs', 'sale_attachments', 'receivable_recoveries', 'expense_attachments',
-  'bank_transactions', 'salary_records', 'payments', 'receivables', 'purchases',
-  'expenses', 'cash_entries', 'inventory_sales', 'sales', 'staff', 'branches', 'suppliers',
-  'customers', 'products', 'expense_categories', 'banks', 'system_settings'
+  'login_history', 'activity_logs', 'sale_attachments', 'receivable_recoveries',
+  'bank_transactions', 'salary_records', 'payments', 'rent_bill_attachments', 'rent_bills',
+  'receivables', 'purchase_attachments', 'purchases',
+  'inventory_sales', 'sales', 'staff', 'branches', 'suppliers',
+  'customers', 'products', 'banks', 'system_settings'
 ];
 const RESTORE_INSERT_ORDER = [
-  'branches', 'expense_categories', 'banks', 'suppliers', 'customers', 'products',
+  'branches', 'banks', 'suppliers', 'customers', 'products',
   'system_settings', 'sales', 'sale_attachments', 'receivables', 'receivable_recoveries',
-  'purchases', 'expenses', 'expense_attachments', 'cash_entries', 'bank_transactions', 'staff',
+  'purchases', 'purchase_attachments', 'rent_bills', 'rent_bill_attachments',
+  'bank_transactions', 'staff',
   'salary_records', 'inventory_sales', 'payments',
   'activity_logs', 'login_history'
 ];

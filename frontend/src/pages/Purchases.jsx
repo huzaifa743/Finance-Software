@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { Plus, Pencil, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Trash2, AlertTriangle, Paperclip } from 'lucide-react';
 
 export default function Purchases() {
   const [list, setList] = useState([]);
@@ -14,6 +14,9 @@ export default function Purchases() {
   const [filters, setFilters] = useState({ supplier_id: '', branch_id: '', from: '', to: '' });
   const [form, setForm] = useState({ supplier_id: '', branch_id: '', invoice_no: '', purchase_date: '', due_date: '', total_amount: '', paid_amount: 0, remarks: '' });
   const [payForm, setPayForm] = useState({ purchase_id: '', supplier_id: '', amount: '', payment_date: '', mode: 'cash' });
+  const [attachmentsModal, setAttachmentsModal] = useState(null);
+  const [attachments, setAttachments] = useState([]);
+  const [uploading, setUploading] = useState(false);
 
   const load = () => {
     const q = new URLSearchParams();
@@ -88,6 +91,52 @@ export default function Purchases() {
     }
   };
 
+  const loadAttachments = async (purchaseId) => {
+    const rows = await api.get(`/purchases/${purchaseId}/attachments`);
+    setAttachments(Array.isArray(rows) ? rows : []);
+  };
+
+  const openAttachments = async (p) => {
+    setAttachmentsModal(p);
+    setAttachments([]);
+    try {
+      await loadAttachments(p.id);
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
+  const uploadAttachments = async (purchaseId, files) => {
+    if (!files?.length) return;
+    setUploading(true);
+    setErr('');
+    try {
+      const fd = new FormData();
+      Array.from(files).forEach((f) => fd.append('files', f));
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/purchases/${purchaseId}/attachments`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText || 'Upload failed');
+      await loadAttachments(purchaseId);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const deleteAttachment = async (purchaseId, attId) => {
+    try {
+      await api.delete(`/purchases/${purchaseId}/attachments/${attId}`);
+      await loadAttachments(purchaseId);
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
 
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
@@ -172,6 +221,7 @@ export default function Purchases() {
                   <td className="px-4 py-3 text-right font-mono font-medium">{fmt(p.balance)}</td>
                   <td className="px-4 py-3 text-right">
                     {Number(p.balance) > 0 && <button onClick={() => openPay(p)} className="btn-primary text-xs mr-1">Pay</button>}
+                    <button onClick={() => openAttachments(p)} className="p-1.5 text-slate-500 hover:text-primary-600" title="Attach bill"><Paperclip className="w-4 h-4" /></button>
                     <button onClick={() => openEdit(p)} className="p-1.5 text-slate-500 hover:text-primary-600"><Pencil className="w-4 h-4" /></button>
                     <button onClick={() => remove(p.id)} className="p-1.5 text-slate-500 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
                   </td>
@@ -216,6 +266,37 @@ export default function Purchases() {
               <div><label className="label">Mode</label><select className="input" value={payForm.mode} onChange={(e) => setPayForm({ ...payForm, mode: e.target.value })}><option value="cash">Cash</option><option value="bank">Bank</option></select></div>
               <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Pay</button><button type="button" onClick={() => setPayModal(null)} className="btn-secondary">Cancel</button></div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {attachmentsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Attach Bill — {attachmentsModal.invoice_no || attachmentsModal.purchase_date}</h2>
+            <div className="space-y-3">
+              <input
+                type="file"
+                multiple
+                accept="image/*,.pdf"
+                onChange={(e) => uploadAttachments(attachmentsModal.id, e.target.files)}
+                disabled={uploading}
+              />
+              {uploading && <p className="text-sm text-slate-500">Uploading…</p>}
+              {attachments.length ? (
+                <ul className="space-y-2">
+                  {attachments.map((a) => (
+                    <li key={a.id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2">
+                      <a className="text-sm text-primary-700 hover:underline" href={a.url} target="_blank" rel="noreferrer">{a.filename}</a>
+                      <button onClick={() => deleteAttachment(attachmentsModal.id, a.id)} className="p-1.5 text-slate-500 hover:text-red-600" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-slate-500">No attachments. Upload a bill (optional).</p>
+              )}
+            </div>
+            <button type="button" onClick={() => { setAttachmentsModal(null); setAttachments([]); }} className="btn-secondary mt-4">Close</button>
           </div>
         </div>
       )}

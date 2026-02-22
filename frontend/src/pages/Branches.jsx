@@ -8,7 +8,7 @@ export default function Branches() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({ code: '', name: '', location: '', manager_user_id: '', opening_date: '', closing_date: '', opening_cash: 0, is_active: true });
+  const [form, setForm] = useState({ code: '', name: '', location: '', manager_user_id: '', opening_date: '', closing_date: '', is_active: true });
 
   const load = () => {
     api.get('/branches').then(setList).catch((e) => setErr(e.message));
@@ -22,7 +22,7 @@ export default function Branches() {
   useEffect(() => { setLoading(false); }, [list]);
 
   const openAdd = () => {
-    setForm({ code: '', name: '', location: '', manager_user_id: '', opening_date: '', closing_date: '', opening_cash: 0, is_active: true });
+    setForm({ code: '', name: '', location: '', manager_user_id: '', opening_date: '', closing_date: '', is_active: true });
     setModal('add');
   };
 
@@ -35,7 +35,6 @@ export default function Branches() {
       manager_user_id: b.manager_user_id || '',
       opening_date: b.opening_date || '',
       closing_date: b.closing_date || '',
-      opening_cash: b.opening_cash ?? 0,
       is_active: !!b.is_active,
     });
     setModal('edit');
@@ -92,7 +91,6 @@ export default function Branches() {
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Location</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Manager</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Opening / Closing</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Opening Cash</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Status</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
               </tr>
@@ -105,7 +103,6 @@ export default function Branches() {
                   <td className="px-4 py-3 text-slate-600">{b.location || '–'}</td>
                   <td className="px-4 py-3 text-slate-600">{b.manager_name || '–'}</td>
                   <td className="px-4 py-3 text-slate-600">{b.opening_date || '–'} / {b.closing_date || '–'}</td>
-                  <td className="px-4 py-3 text-right font-mono">{Number(b.opening_cash || 0).toLocaleString()}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${b.is_active ? 'bg-green-100 text-green-800' : 'bg-slate-200 text-slate-700'}`}>
                       {b.is_active ? 'Active' : 'Inactive'}
@@ -158,10 +155,6 @@ export default function Branches() {
                   <label className="label">Closing Date</label>
                   <input type="date" className="input" value={form.closing_date} onChange={(e) => setForm({ ...form, closing_date: e.target.value })} />
                 </div>
-              </div>
-              <div>
-                <label className="label">Opening Cash</label>
-                <input type="number" step="0.01" className="input" value={form.opening_cash} onChange={(e) => setForm({ ...form, opening_cash: e.target.value })} />
               </div>
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="active" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />

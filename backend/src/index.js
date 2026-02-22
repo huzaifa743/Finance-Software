@@ -10,14 +10,14 @@ import branchesRoutes from './routes/branches.js';
 import salesRoutes from './routes/sales.js';
 import receivablesRoutes from './routes/receivables.js';
 import purchasesRoutes from './routes/purchases.js';
-import expensesRoutes from './routes/expenses.js';
-import cashRoutes from './routes/cash.js';
 import banksRoutes from './routes/banks.js';
 import plRoutes from './routes/pl.js';
 import staffRoutes from './routes/staff.js';
 import inventoryRoutes from './routes/inventory.js';
 import settingsRoutes from './routes/settings.js';
 import dashboardRoutes from './routes/dashboard.js';
+import rentBillsRoutes from './routes/rentBills.js';
+import paymentsRoutes from './routes/payments.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -35,14 +35,14 @@ app.use('/api/branches', branchesRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/receivables', receivablesRoutes);
 app.use('/api/purchases', purchasesRoutes);
-app.use('/api/expenses', expensesRoutes);
-app.use('/api/cash', cashRoutes);
 app.use('/api/banks', banksRoutes);
 app.use('/api/pl', plRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/rent-bills', rentBillsRoutes);
+app.use('/api/payments', paymentsRoutes);
 
 const clientDistPath = path.join(__dirname, '../../frontend/dist');
 if (fs.existsSync(clientDistPath)) {

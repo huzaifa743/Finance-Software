@@ -38,24 +38,19 @@ router.get('/:id/performance', authenticate, (req, res) => {
     SELECT COALESCE(SUM(net_sales), 0) as total_sales, COUNT(*) as count
     FROM sales WHERE ${where}
   `).get(...params);
-  const expenses = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total_expenses
-    FROM expenses WHERE branch_id = ? ${from ? 'AND expense_date >= ?' : ''} ${to ? 'AND expense_date <= ?' : ''}
-  `).get(...[id, from, to].filter(Boolean));
   res.json({
     total_sales: sales?.total_sales ?? 0,
     sales_count: sales?.count ?? 0,
-    total_expenses: expenses?.total_expenses ?? 0,
   });
 });
 
 router.post('/', authenticate, requireRole('Super Admin', 'Finance Manager'), logActivity('create', 'branches', req => req.body?.name || ''), (req, res) => {
   try {
-    const { code, name, location, manager_user_id, opening_date, closing_date, opening_cash, is_active } = req.body;
+    const { code, name, location, manager_user_id, opening_date, closing_date, is_active } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required.' });
     const r = db.prepare(`
       INSERT INTO branches (code, name, location, manager_user_id, opening_date, closing_date, opening_cash, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, 0, ?)
     `).run(
       code || null,
       name,
@@ -63,7 +58,6 @@ router.post('/', authenticate, requireRole('Super Admin', 'Finance Manager'), lo
       manager_user_id || null,
       opening_date || null,
       closing_date || null,
-      opening_cash ?? 0,
       is_active !== false ? 1 : 0
     );
     res.status(201).json({ id: r.lastInsertRowid, code: code || null, name });
@@ -76,10 +70,10 @@ router.post('/', authenticate, requireRole('Super Admin', 'Finance Manager'), lo
 router.patch('/:id', authenticate, requireRole('Super Admin', 'Finance Manager'), logActivity('update', 'branches', req => req.params.id), (req, res) => {
   try {
     const { id } = req.params;
-    const { code, name, location, manager_user_id, opening_date, closing_date, opening_cash, is_active } = req.body;
+    const { code, name, location, manager_user_id, opening_date, closing_date, is_active } = req.body;
     const updates = [];
     const params = [];
-    ['code', 'name', 'location', 'manager_user_id', 'opening_date', 'closing_date', 'opening_cash'].forEach(f => {
+    ['code', 'name', 'location', 'manager_user_id', 'opening_date', 'closing_date'].forEach(f => {
       if (req.body[f] !== undefined) { updates.push(`${f} = ?`); params.push(req.body[f]); }
     });
     if (is_active !== undefined) { updates.push('is_active = ?'); params.push(is_active ? 1 : 0); }
@@ -99,9 +93,7 @@ router.delete('/:id', authenticate, requireRole('Super Admin'), logActivity('del
     const { id } = req.params;
     const tables = [
       ['sales', 'branch_id'],
-      ['expenses', 'branch_id'],
       ['purchases', 'branch_id'],
-      ['cash_entries', 'branch_id'],
       ['inventory_sales', 'branch_id'],
       ['receivables', 'branch_id'],
       ['staff', 'branch_id'],

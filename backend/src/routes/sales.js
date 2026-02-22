@@ -36,8 +36,11 @@ function netSales(row) {
 router.get('/', authenticate, (req, res) => {
   const { branch_id, from, to, type } = req.query;
   let sql = `
-    SELECT s.*, b.name as branch_name
-    FROM sales s LEFT JOIN branches b ON s.branch_id = b.id WHERE 1=1
+    SELECT s.*, b.name as branch_name, c.name as customer_name
+    FROM sales s
+    LEFT JOIN branches b ON s.branch_id = b.id
+    LEFT JOIN customers c ON s.customer_id = c.id
+    WHERE 1=1
   `;
   const params = [];
   if (branch_id) { sql += ' AND s.branch_id = ?'; params.push(branch_id); }
@@ -104,8 +107,10 @@ router.get('/reports/date-range', authenticate, (req, res) => {
 
 router.get('/:id', authenticate, (req, res) => {
   const row = db.prepare(`
-    SELECT s.*, b.name as branch_name FROM sales s
-    LEFT JOIN branches b ON s.branch_id = b.id WHERE s.id = ?
+    SELECT s.*, b.name as branch_name, c.name as customer_name FROM sales s
+    LEFT JOIN branches b ON s.branch_id = b.id
+    LEFT JOIN customers c ON s.customer_id = c.id
+    WHERE s.id = ?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Sale not found.' });
   const att = db.prepare('SELECT * FROM sale_attachments WHERE sale_id = ?').all(row.id);
@@ -171,18 +176,22 @@ router.post('/:id/lock', authenticate, requireRole('Super Admin', 'Finance Manag
 
 router.post('/', authenticate, requireNotAuditor, logActivity('create', 'sales', req => req.body?.sale_date || ''), (req, res) => {
   try {
-    const { branch_id, sale_date, type, cash_amount, bank_amount, credit_amount, discount, returns_amount, remarks } = req.body;
+    const { branch_id, customer_id, sale_date, type, cash_amount, bank_amount, credit_amount, discount, returns_amount, remarks, due_date } = req.body;
     const cash = parseFloat(cash_amount) || 0;
     const bank = parseFloat(bank_amount) || 0;
     const credit = parseFloat(credit_amount) || 0;
     const disc = parseFloat(discount) || 0;
     const ret = parseFloat(returns_amount) || 0;
     const net = Math.max(0, cash + bank + credit - disc - ret);
+    if (credit > 0 && !customer_id) {
+      return res.status(400).json({ error: 'Customer is required when entering credit sales (amount will be added to Receivables).' });
+    }
     const r = db.prepare(`
-      INSERT INTO sales (branch_id, sale_date, type, cash_amount, bank_amount, credit_amount, discount, returns_amount, net_sales, remarks, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO sales (branch_id, customer_id, sale_date, type, cash_amount, bank_amount, credit_amount, discount, returns_amount, net_sales, remarks, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       branch_id || null,
+      customer_id || null,
       sale_date,
       type || 'cash',
       cash,
@@ -194,7 +203,15 @@ router.post('/', authenticate, requireNotAuditor, logActivity('create', 'sales',
       remarks || null,
       req.user?.id || null
     );
-    res.status(201).json({ id: r.lastInsertRowid, net_sales: net });
+    const saleId = r.lastInsertRowid;
+    // Auto-create receivable when credit amount > 0 (credit sale → receivables)
+    if (credit > 0 && customer_id && saleId) {
+      db.prepare(`
+        INSERT INTO receivables (customer_id, sale_id, branch_id, amount, due_date, status)
+        VALUES (?, ?, ?, ?, ?, 'pending')
+      `).run(customer_id, saleId, branch_id || null, credit, due_date || null);
+    }
+    res.status(201).json({ id: saleId, net_sales: net });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -205,19 +222,23 @@ router.patch('/:id', authenticate, requireNotAuditor, logActivity('update', 'sal
     const existing = db.prepare('SELECT * FROM sales WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Sale not found.' });
     if (existing.is_locked) return res.status(400).json({ error: 'Sale is locked.' });
-    const { sale_date, type, cash_amount, bank_amount, credit_amount, discount, returns_amount, remarks } = req.body;
+    const { sale_date, type, customer_id, cash_amount, bank_amount, credit_amount, discount, returns_amount, remarks } = req.body;
     const cash = cash_amount !== undefined ? parseFloat(cash_amount) || 0 : existing.cash_amount;
     const bank = bank_amount !== undefined ? parseFloat(bank_amount) || 0 : existing.bank_amount;
     const credit = credit_amount !== undefined ? parseFloat(credit_amount) || 0 : existing.credit_amount;
     const disc = discount !== undefined ? parseFloat(discount) || 0 : existing.discount;
     const ret = returns_amount !== undefined ? parseFloat(returns_amount) || 0 : existing.returns_amount;
     const net = Math.max(0, cash + bank + credit - disc - ret);
+    if (credit > 0 && req.body.customer_id !== undefined && !req.body.customer_id) {
+      return res.status(400).json({ error: 'Customer is required for credit sales.' });
+    }
     db.prepare(`
-      UPDATE sales SET sale_date=?, type=?, cash_amount=?, bank_amount=?, credit_amount=?, discount=?, returns_amount=?, net_sales=?, remarks=?, updated_at=?
+      UPDATE sales SET sale_date=?, type=?, customer_id=?, cash_amount=?, bank_amount=?, credit_amount=?, discount=?, returns_amount=?, net_sales=?, remarks=?, updated_at=?
       WHERE id=?
     `).run(
       sale_date ?? existing.sale_date,
       type ?? existing.type,
+      customer_id !== undefined ? customer_id : existing.customer_id,
       cash,
       bank,
       credit,

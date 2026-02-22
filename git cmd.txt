@@ -1,0 +1,17 @@
+git branch -M main
+git remote add origin https://github.com/huzaifa743/Finance-Software.git
+git push -u origin main
+
+
+
+git init
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/huzaifa743/Finance-Software.git
+git push -u origin main
+
+
+git add .
+git commit -m "Changes Done"
+git push origin main

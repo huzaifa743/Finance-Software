@@ -17,10 +17,14 @@ function bankBalance() {
   return total;
 }
 
-function cashInHand(date) {
-  const d = date || new Date().toISOString().slice(0, 10);
-  const rows = db.prepare('SELECT closing_cash FROM cash_entries WHERE entry_date = ?').all(d);
-  return rows.reduce((a, r) => a + (parseFloat(r.closing_cash) || 0), 0);
+function bankListWithBalance() {
+  const banks = db.prepare('SELECT id, name, account_number, opening_balance FROM banks ORDER BY name').all();
+  return banks.map((b) => {
+    const dep = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM bank_transactions WHERE bank_id = ? AND type IN ('deposit', 'transfer_in')").get(b.id);
+    const wit = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM bank_transactions WHERE bank_id = ? AND type IN ('withdrawal', 'payment', 'transfer_out')").get(b.id);
+    const balance = (parseFloat(b.opening_balance) || 0) + (parseFloat(dep?.t) || 0) - (parseFloat(wit?.t) || 0);
+    return { id: b.id, name: b.name, account_number: b.account_number, balance };
+  });
 }
 
 router.get('/', authenticate, (req, res) => {
@@ -29,18 +33,21 @@ router.get('/', authenticate, (req, res) => {
   const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
   const monthEnd = today.slice(0, 8) + String(lastDay).padStart(2, '0');
 
-  const salesToday = db.prepare('SELECT COALESCE(SUM(net_sales), 0) as t FROM sales WHERE sale_date = ?').get(today);
+  const salesTodayRealized = db.prepare(
+    "SELECT COALESCE(SUM(cash_amount), 0) + COALESCE(SUM(bank_amount), 0) as t FROM sales WHERE sale_date = ?"
+  ).get(today);
+  const salesTodayCredit = db.prepare(
+    'SELECT COALESCE(SUM(credit_amount), 0) as t FROM sales WHERE sale_date = ?'
+  ).get(today);
   const salesMonth = db.prepare('SELECT COALESCE(SUM(net_sales), 0) as t FROM sales WHERE sale_date >= ? AND sale_date <= ?').get(monthStart, monthEnd);
   const purchasesMonth = db.prepare('SELECT COALESCE(SUM(total_amount), 0) as t FROM purchases WHERE purchase_date >= ? AND purchase_date <= ?').get(monthStart, monthEnd);
-  const expensesMonth = db.prepare('SELECT COALESCE(SUM(amount), 0) as t FROM expenses WHERE expense_date >= ? AND expense_date <= ?').get(monthStart, monthEnd);
 
   const gross = parseFloat(salesMonth?.t) || 0;
   const cost = parseFloat(purchasesMonth?.t) || 0;
-  const exp = parseFloat(expensesMonth?.t) || 0;
-  const netProfit = gross - cost - exp;
+  const netProfit = gross - cost;
 
   const receivables = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as t FROM receivables WHERE status = 'pending'
+    SELECT COALESCE(SUM(amount), 0) as t FROM receivables WHERE status IN ('pending', 'partial')
   `).get();
   const payables = db.prepare(`
     SELECT COALESCE(SUM(balance), 0) as t FROM purchases WHERE balance > 0
@@ -55,27 +62,19 @@ router.get('/', authenticate, (req, res) => {
     ORDER BY total DESC
   `).all(monthStart, monthEnd);
 
-  const expenseByCategory = db.prepare(`
-    SELECT c.name, COALESCE(SUM(e.amount), 0) as total
-    FROM expense_categories c
-    LEFT JOIN expenses e ON e.category_id = c.id AND e.expense_date >= ? AND e.expense_date <= ?
-    GROUP BY c.id, c.name
-    HAVING total > 0
-    ORDER BY total DESC
-  `).all(monthStart, monthEnd);
-
   res.json({
     widgets: {
-      salesToday: parseFloat(salesToday?.t) || 0,
+      salesToday: parseFloat(salesTodayRealized?.t) || 0,
+      salesTodayCredit: parseFloat(salesTodayCredit?.t) || 0,
+      salesOnCredit: parseFloat(receivables?.t) || 0,
       salesMonth: parseFloat(salesMonth?.t) || 0,
       netProfit,
-      cashInHand: cashInHand(today),
       bankBalance: bankBalance(),
       receivables: parseFloat(receivables?.t) || 0,
       payables: parseFloat(payables?.t) || 0,
     },
+    bankAccounts: bankListWithBalance(),
     branchComparison: branchSales,
-    expenseHeatmap: expenseByCategory,
     date: today,
     monthStart,
     monthEnd,
@@ -94,14 +93,6 @@ function buildExportData(module, { from, to, branch_id }) {
     sql += ' ORDER BY sale_date DESC';
     data = db.prepare(sql).all(...params);
     filename = `sales_${from || 'all'}_${to || 'all'}`;
-  } else if (module === 'expenses') {
-    let sql = 'SELECT e.*, c.name as category_name FROM expenses e LEFT JOIN expense_categories c ON e.category_id = c.id WHERE 1=1';
-    if (from) { sql += ' AND e.expense_date >= ?'; params.push(from); }
-    if (to) { sql += ' AND e.expense_date <= ?'; params.push(to); }
-    if (branch_id) { sql += ' AND e.branch_id = ?'; params.push(branch_id); }
-    sql += ' ORDER BY e.expense_date DESC';
-    data = db.prepare(sql).all(...params);
-    filename = `expenses_${from || 'all'}_${to || 'all'}`;
   } else if (module === 'purchases') {
     let sql = 'SELECT p.*, s.name as supplier_name FROM purchases p LEFT JOIN suppliers s ON p.supplier_id = s.id WHERE 1=1';
     if (from) { sql += ' AND p.purchase_date >= ?'; params.push(from); }

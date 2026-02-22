@@ -79,14 +79,6 @@ INSERT OR IGNORE INTO system_settings (key, value) VALUES
   ('invoice_counter', '1'),
   ('voucher_counter', '1');
 
--- Expense categories
-CREATE TABLE IF NOT EXISTS expense_categories (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  type TEXT DEFAULT 'variable',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
 -- Banks
 CREATE TABLE IF NOT EXISTS banks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,6 +94,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
   name TEXT NOT NULL,
   contact TEXT,
   address TEXT,
+  phone TEXT,
+  vat_number TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -127,6 +121,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS sales (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   branch_id INTEGER REFERENCES branches(id),
+  customer_id INTEGER REFERENCES customers(id),
   sale_date DATE NOT NULL,
   type TEXT DEFAULT 'cash',
   cash_amount REAL DEFAULT 0,
@@ -185,45 +180,6 @@ CREATE TABLE IF NOT EXISTS purchases (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Expenses
-CREATE TABLE IF NOT EXISTS expenses (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  branch_id INTEGER REFERENCES branches(id),
-  category_id INTEGER REFERENCES expense_categories(id),
-  amount REAL NOT NULL,
-  expense_date DATE NOT NULL,
-  type TEXT DEFAULT 'variable',
-  is_recurring INTEGER DEFAULT 0,
-  remarks TEXT,
-  status TEXT DEFAULT 'approved',
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS expense_attachments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  expense_id INTEGER REFERENCES expenses(id),
-  filename TEXT,
-  path TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- Cash management (daily opening/closing)
-CREATE TABLE IF NOT EXISTS cash_entries (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  branch_id INTEGER REFERENCES branches(id),
-  entry_date DATE NOT NULL,
-  opening_cash REAL DEFAULT 0,
-  closing_cash REAL DEFAULT 0,
-  sales_cash REAL DEFAULT 0,
-  expense_cash REAL DEFAULT 0,
-  bank_deposit REAL DEFAULT 0,
-  bank_withdrawal REAL DEFAULT 0,
-  difference REAL DEFAULT 0,
-  remarks TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(branch_id, entry_date)
-);
-
 -- Bank transactions
 CREATE TABLE IF NOT EXISTS bank_transactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -273,7 +229,38 @@ CREATE TABLE IF NOT EXISTS inventory_sales (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Payment records (supplier payments, etc.)
+-- Purchase attachments (optional bill)
+CREATE TABLE IF NOT EXISTS purchase_attachments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  purchase_id INTEGER REFERENCES purchases(id),
+  filename TEXT,
+  path TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Rent and Bills (pay from Payments module)
+CREATE TABLE IF NOT EXISTS rent_bills (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  category TEXT DEFAULT 'bill',
+  amount REAL NOT NULL,
+  due_date DATE,
+  paid_amount REAL DEFAULT 0,
+  status TEXT DEFAULT 'pending',
+  remarks TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS rent_bill_attachments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  rent_bill_id INTEGER REFERENCES rent_bills(id),
+  filename TEXT,
+  path TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Payment records (supplier, rent_bill, salary payments)
 CREATE TABLE IF NOT EXISTS payments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   type TEXT NOT NULL,
@@ -290,9 +277,9 @@ CREATE TABLE IF NOT EXISTS payments (
 -- Roles
 INSERT OR IGNORE INTO roles (id, name, permissions) VALUES
   (1, 'Super Admin', 'all'),
-  (2, 'Finance Manager', 'branches,sales,purchases,expenses,bank,cash,reports'),
-  (3, 'Branch Manager', 'branch_sales,branch_expenses,branch_cash'),
-  (4, 'Data Entry Operator', 'sales,expenses,data_entry'),
+  (2, 'Finance Manager', 'branches,sales,purchases,bank,reports'),
+  (3, 'Branch Manager', 'branch_sales,branch_purchases'),
+  (4, 'Data Entry Operator', 'sales,data_entry'),
   (5, 'Auditor', 'read_only');
 `);
 
@@ -303,17 +290,6 @@ db.prepare(`
   INSERT OR IGNORE INTO users (id, email, password, name, role_id) 
   VALUES (1, 'admin@finance.com', ?, 'Super Admin', 1)
 `).run(hash);
-
-// Seed expense categories
-db.exec(`
-  INSERT OR IGNORE INTO expense_categories (name, type) VALUES
-  ('Rent', 'fixed'),
-  ('Utilities', 'variable'),
-  ('Salaries', 'fixed'),
-  ('Office Supplies', 'variable'),
-  ('Marketing', 'variable'),
-  ('Miscellaneous', 'variable');
-`);
 
 db.close();
 console.log('Database initialized at', dbPath);

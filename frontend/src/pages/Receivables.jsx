@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { Plus, AlertTriangle, Users } from 'lucide-react';
+import { Plus, AlertTriangle, Users, FileText, Printer } from 'lucide-react';
 
 export default function Receivables() {
   const [list, setList] = useState([]);
@@ -16,6 +16,7 @@ export default function Receivables() {
   const [recoverForm, setRecoverForm] = useState({ receivable_id: '', amount: '', remarks: '' });
   const [customerForm, setCustomerForm] = useState({ name: '', contact: '', address: '' });
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [ledgerPrintCustomer, setLedgerPrintCustomer] = useState(null);
 
   const load = () => {
     api.get('/receivables').then(setList).catch((e) => setErr(e.message));
@@ -85,6 +86,23 @@ export default function Receivables() {
     }
   };
 
+  const openLedgerPdf = async (customerId, customerName) => {
+    setErr('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/receivables/ledger/${customerId}/pdf`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Failed to load ledger');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
   return (
@@ -95,6 +113,7 @@ export default function Receivables() {
           <p className="text-slate-500 mt-1">Customer ledger, recovery, overdue alerts</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => setLedgerPrintCustomer(true)} className="btn-secondary"><FileText className="w-4 h-4" /> Print Ledger</button>
           <button onClick={() => { setCustomersModal(true); setEditingCustomer(null); setCustomerForm({ name: '', contact: '', address: '' }); }} className="btn-secondary"><Users className="w-4 h-4" /> Manage Customers</button>
           <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Receivable</button>
         </div>
@@ -141,6 +160,7 @@ export default function Receivables() {
                   <td className="px-4 py-3">{r.due_date || '–'}</td>
                   <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${r.status === 'pending' ? 'bg-amber-100 text-amber-800' : r.status === 'partial' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>{r.status}</span></td>
                   <td className="px-4 py-3 text-right">
+                    <button onClick={() => openLedgerPdf(r.customer_id, r.customer_name)} className="inline-flex items-center gap-1 text-xs text-slate-600 hover:text-primary-600 mr-2" title="Print ledger"><Printer className="w-3.5 h-3.5" /> Ledger</button>
                     {r.status !== 'recovered' && <button onClick={() => openRecover(r)} className="btn-primary text-xs">Recover</button>}
                   </td>
                 </tr>
@@ -200,6 +220,34 @@ export default function Receivables() {
               </div>
             </div>
             <button onClick={() => setCustomersModal(false)} className="btn-secondary mt-4">Close</button>
+          </div>
+        </div>
+      )}
+
+      {ledgerPrintCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="card w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Print Receivables Ledger</h2>
+            <p className="text-sm text-slate-600 mb-4">Select a customer to open their ledger (PDF). You can then print from the browser.</p>
+            <select
+              className="input w-full mb-4"
+              value=""
+              onChange={(e) => {
+                const id = e.target.value;
+                if (id) {
+                  const c = customers.find((x) => String(x.id) === id);
+                  openLedgerPdf(id, c?.name);
+                }
+              }}
+            >
+              <option value="">Select customer…</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-3">
+              <button type="button" onClick={() => setLedgerPrintCustomer(null)} className="btn-secondary">Close</button>
+            </div>
           </div>
         </div>
       )}

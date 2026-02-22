@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, Wallet, Landmark, Receipt, Truck, DollarSign, Building2 } from 'lucide-react';
-
-const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { TrendingUp, Landmark, Receipt, Truck, DollarSign } from 'lucide-react';
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
@@ -18,20 +16,19 @@ export default function Dashboard() {
   if (err) return <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">{err}</div>;
   if (!data) return null;
 
-  const { widgets, branchComparison, expenseHeatmap, date } = data;
+  const { widgets, branchComparison, bankAccounts, date } = data;
 
   const cards = [
     { label: 'Sales Today', value: widgets.salesToday, icon: DollarSign, color: 'bg-primary-500' },
+    { label: 'Sales Today on Credit', value: widgets.salesTodayCredit, icon: Receipt, color: 'bg-amber-500' },
+    { label: 'Sales on Credit (Receivable)', value: widgets.salesOnCredit, icon: Receipt, color: 'bg-violet-500' },
     { label: 'Sales (Month)', value: widgets.salesMonth, icon: TrendingUp, color: 'bg-accent-500' },
     { label: 'Net Profit (Month)', value: widgets.netProfit, icon: TrendingUp, color: 'bg-emerald-500' },
-    { label: 'Cash in Hand', value: widgets.cashInHand, icon: Wallet, color: 'bg-amber-500' },
     { label: 'Bank Balance', value: widgets.bankBalance, icon: Landmark, color: 'bg-blue-500' },
-    { label: 'Receivables', value: widgets.receivables, icon: Receipt, color: 'bg-violet-500' },
     { label: 'Payables', value: widgets.payables, icon: Truck, color: 'bg-rose-500' },
   ];
 
   const branchData = (branchComparison || []).map((b) => ({ name: b.name || 'N/A', total: parseFloat(b.total) || 0 }));
-  const expenseData = (expenseHeatmap || []).map((b) => ({ name: b.name || 'Other', value: parseFloat(b.total) || 0 }));
 
   const fmt = (n) => {
     const x = Number(n);
@@ -60,6 +57,32 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {Array.isArray(bankAccounts) && bankAccounts.length > 0 && (
+        <div className="card p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Bank Accounts</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="text-left px-4 py-3 font-medium text-slate-700">Bank</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-700">Account</th>
+                  <th className="text-right px-4 py-3 font-medium text-slate-700">Balance</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {bankAccounts.map((b) => (
+                  <tr key={b.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-medium">{b.name}</td>
+                    <td className="px-4 py-3 text-slate-600">{b.account_number || '–'}</td>
+                    <td className="px-4 py-3 text-right font-mono">{fmt(b.balance)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="card p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">Branch Comparison (Month)</h2>
@@ -76,23 +99,6 @@ export default function Dashboard() {
             </div>
           ) : (
             <p className="text-slate-500 py-8 text-center">No branch data</p>
-          )}
-        </div>
-        <div className="card p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Expenses by Category (Month)</h2>
-          {expenseData.length ? (
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={expenseData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={(e) => e.name}>
-                    {expenseData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip formatter={(v) => fmt(v)} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <p className="text-slate-500 py-8 text-center">No expense data</p>
           )}
         </div>
       </div>

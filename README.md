@@ -1,6 +1,6 @@
 # Finance Software
 
-Online finance management application with branch management, sales, receivables, purchases, expenses, cash, banks, P&L, staff, inventory, reports, users & security, and system settings.
+Online finance management application with branch management, sales, receivables, purchases, banks, P&L, staff, inventory, reports, users & security, and system settings.
 
 ## Tech Stack
 
@@ -39,14 +39,12 @@ App runs at `http://localhost:5173`. API requests are proxied to the backend.
 
 | Module | Features |
 |--------|----------|
-| **Branch Management** | Add/edit/delete branches, code, location, manager, opening/closing dates, opening cash, active/inactive, performance summary |
+| **Branch Management** | Add/edit/delete branches, code, location, manager, opening/closing dates, active/inactive, performance summary |
 | **Sales** | Manual daily sales (branch-wise), cash/bank/credit, discount & returns, net sales, edit/lock, remarks |
 | **Receivables** | Customer ledger, credit sales, partial/full recovery, due balance, overdue alerts |
 | **Purchases & Suppliers** | Supplier registration, invoices, branch-wise purchases, partial/full payments, ledger, reminders |
-| **Expenses & Petty Cash** | Categories, fixed/variable, branch-wise, recurring, attachments |
-| **Cash Management** | Opening/closing cash, sales/expense cash, bank deposit/withdrawal, difference alerts, branch summary |
 | **Banks** | Multiple accounts, deposits, payments, transfers, ledger, reconciliation |
-| **Profit & Loss** | Branch-wise & consolidated P&L, gross/net profit, expense ratio, monthly/yearly |
+| **Profit & Loss** | Branch-wise & consolidated P&L, gross profit, monthly/yearly |
 | **Staff & Salary** | Branch-wise staff, fixed salary, commission, advances, deductions, salary processing |
 | **Inventory** | Products, sale date, quantity sold |
 | **Reports & Dashboard** | Daily/monthly/date-range, branch-wise & consolidated, exports (JSON/CSV) |

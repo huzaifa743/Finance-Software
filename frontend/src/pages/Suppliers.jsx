@@ -8,7 +8,7 @@ export default function Suppliers() {
   const [err, setErr] = useState('');
   const [modal, setModal] = useState(null);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: '', contact: '', address: '' });
+  const [form, setForm] = useState({ name: '', address: '', phone: '', vat_number: '', contact: '' });
   const [ledgerSupplier, setLedgerSupplier] = useState(null);
   const [ledger, setLedger] = useState(null);
   const [supplierQuery, setSupplierQuery] = useState('');
@@ -28,13 +28,13 @@ export default function Suppliers() {
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: '', contact: '', address: '' });
+    setForm({ name: '', address: '', phone: '', vat_number: '', contact: '' });
     setModal('add');
   };
 
   const openEdit = (s) => {
     setEditing(s);
-    setForm({ name: s.name, contact: s.contact || '', address: s.address || '' });
+    setForm({ name: s.name, address: s.address || '', phone: s.phone || '', vat_number: s.vat_number || '', contact: s.contact || '' });
     setModal('edit');
   };
 
@@ -73,7 +73,7 @@ export default function Suppliers() {
   const ledgerNeedle = ledgerQuery.trim().toLowerCase();
   const filteredList = supplierNeedle
     ? list.filter((s) => {
-        const hay = `${s.name} ${s.contact || ''} ${s.address || ''}`.toLowerCase();
+        const hay = `${s.name} ${s.contact || ''} ${s.address || ''} ${s.phone || ''} ${s.vat_number || ''}`.toLowerCase();
         return hay.includes(supplierNeedle);
       })
     : list;
@@ -135,8 +135,9 @@ export default function Suppliers() {
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Contact</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Address</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">Phone</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">VAT Number</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
               </tr>
             </thead>
@@ -144,8 +145,9 @@ export default function Suppliers() {
               {filteredList.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium">{s.name}</td>
-                  <td className="px-4 py-3">{s.contact || '–'}</td>
                   <td className="px-4 py-3">{s.address || '–'}</td>
+                  <td className="px-4 py-3">{s.phone || '–'}</td>
+                  <td className="px-4 py-3">{s.vat_number || '–'}</td>
                   <td className="px-4 py-3 text-right">
                     <button onClick={() => setLedgerSupplier(s)} className="btn-secondary text-xs mr-2"><BookOpen className="w-4 h-4" /> Ledger</button>
                     <button onClick={() => openEdit(s)} className="p-1.5 text-slate-500 hover:text-primary-600"><Pencil className="w-4 h-4" /></button>
@@ -237,8 +239,10 @@ export default function Suppliers() {
             <h2 className="text-lg font-semibold text-slate-900 mb-4">{modal === 'add' ? 'Add Supplier' : 'Edit Supplier'}</h2>
             <form onSubmit={save} className="space-y-4">
               <div><label className="label">Name *</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
-              <div><label className="label">Contact</label><input className="input" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></div>
               <div><label className="label">Address</label><input className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
+              <div><label className="label">Phone</label><input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+              <div><label className="label">VAT Number</label><input className="input" value={form.vat_number} onChange={(e) => setForm({ ...form, vat_number: e.target.value })} /></div>
+              <div><label className="label">Contact (other)</label><input className="input" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} placeholder="Email or contact person" /></div>
               <div className="flex gap-3"><button type="submit" className="btn-primary">{modal === 'add' ? 'Add' : 'Update'}</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button></div>
             </form>
           </div>

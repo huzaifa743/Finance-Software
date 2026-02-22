@@ -8,8 +8,6 @@ import Sales from './pages/Sales';
 import Receivables from './pages/Receivables';
 import Purchases from './pages/Purchases';
 import Suppliers from './pages/Suppliers';
-import Expenses from './pages/Expenses';
-import Cash from './pages/Cash';
 import Banks from './pages/Banks';
 import PL from './pages/PL';
 import Staff from './pages/Staff';
@@ -17,6 +15,8 @@ import Inventory from './pages/Inventory';
 import Reports from './pages/Reports';
 import Users from './pages/Users';
 import Settings from './pages/Settings';
+import RentBills from './pages/RentBills';
+import Payments from './pages/Payments';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -43,13 +43,13 @@ export default function App() {
         <Route path="receivables" element={<Receivables />} />
         <Route path="purchases" element={<Purchases />} />
         <Route path="suppliers" element={<Suppliers />} />
-        <Route path="expenses" element={<Expenses />} />
-        <Route path="cash" element={<Cash />} />
         <Route path="banks" element={<Banks />} />
         <Route path="pl" element={<PL />} />
         <Route path="staff" element={<Staff />} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="rent-bills" element={<RentBills />} />
+        <Route path="payments" element={<Payments />} />
         <Route path="users" element={<Users />} />
         <Route path="settings" element={<Settings />} />
       </Route>

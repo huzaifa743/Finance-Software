@@ -33,14 +33,19 @@ export default function Reports() {
       else if (type === 'monthly') api.get(append(`/purchases/reports/monthly?month=${month}&year=${year}`, branchId ? `branch_id=${branchId}` : '')).then(setData).catch((e) => setErr(e.message)).finally(run);
       else if (type === 'supplier') api.get(append(`/purchases/reports/supplier-wise`, from && to ? `from=${from}&to=${to}` : '')).then((d) => setData(Array.isArray(d) ? { rows: d, total: null } : d)).catch((e) => setErr(e.message)).finally(run);
       else api.get(append(`/purchases?from=${from}&to=${to}`, branchId ? `branch_id=${branchId}` : '')).then((d) => setData({ rows: d, total: d.reduce((a, r) => a + (Number(r.total_amount) || 0), 0) })).catch((e) => setErr(e.message)).finally(run);
-    } else if (module === 'expenses') {
-      if (type === 'daily') api.get(append(`/expenses/reports/daily?date=${date}`, branchId ? `branch_id=${branchId}` : '')).then(setData).catch((e) => setErr(e.message)).finally(run);
-      else if (type === 'monthly') api.get(append(`/expenses/reports/monthly?month=${month}&year=${year}`, branchId ? `branch_id=${branchId}` : '')).then(setData).catch((e) => setErr(e.message)).finally(run);
-      else if (type === 'category') api.get(append(`/expenses/reports/category-wise`, [from && `from=${from}`, to && `to=${to}`, branchId && `branch_id=${branchId}`].filter(Boolean).join('&'))).then((d) => setData(Array.isArray(d) ? { rows: d, total: null } : d)).catch((e) => setErr(e.message)).finally(run);
-      else api.get(append(`/expenses?from=${from}&to=${to}`, branchId ? `branch_id=${branchId}` : '')).then((d) => setData({ rows: d, total: d.reduce((a, r) => a + (Number(r.amount) || 0), 0) })).catch((e) => setErr(e.message)).finally(run);
     } else if (module === 'inventory') {
       api.get(append(`/inventory/sales?from=${from}&to=${to}`, branchId ? `branch_id=${branchId}` : ''))
-        .then((d) => setData({ rows: d, total: d.reduce((a, r) => a + (Number(r.total) || 0), 0) }))
+        .then((d) => {
+          const rows = (d || []).map((r) => ({
+            'Date when sold': r.sale_date,
+            'Product': r.product_name,
+            'Sold quantity': r.quantity,
+            'Unit price': r.unit_price,
+            'Total': r.total,
+            'Branch': r.branch_name,
+          }));
+          setData({ rows, total: (d || []).reduce((a, r) => a + (Number(r.total) || 0), 0) });
+        })
         .catch((e) => setErr(e.message))
         .finally(run);
     } else run();
@@ -97,7 +102,6 @@ export default function Reports() {
             }}>
               <option value="sales">Sales</option>
               <option value="purchases">Purchases</option>
-              <option value="expenses">Expenses</option>
               <option value="inventory">Inventory</option>
             </select>
           </div>
@@ -108,7 +112,6 @@ export default function Reports() {
               {module !== 'inventory' && <option value="monthly">Monthly</option>}
               <option value="range">Date range</option>
               {module === 'purchases' && <option value="supplier">Supplier-wise</option>}
-              {module === 'expenses' && <option value="category">Category-wise</option>}
             </select>
           </div>
           {type === 'daily' && <div><label className="label">Date</label><input type="date" className="input w-40" value={date} onChange={(e) => setDate(e.target.value)} /></div>}
@@ -138,7 +141,7 @@ export default function Reports() {
       {data && (
         <div className="card overflow-hidden">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-            <h3 className="font-semibold text-slate-900">Report result</h3>
+            <h3 className="font-semibold text-slate-900">{module === 'inventory' ? 'Inventory Sales — Date when sold · Sold quantity' : 'Report result'}</h3>
             {typeof total === 'number' && <p className="text-lg font-bold text-primary-600">Total: {fmt(total)}</p>}
           </div>
           <div className="overflow-x-auto">

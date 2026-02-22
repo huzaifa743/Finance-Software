@@ -14,9 +14,10 @@ export default function Sales() {
   const [modal, setModal] = useState(null);
   const [filters, setFilters] = useState({ branch_id: '', from: '', to: '', type: '' });
   const [form, setForm] = useState({
-    branch_id: '', sale_date: new Date().toISOString().slice(0, 10), type: 'cash',
-    cash_amount: 0, bank_amount: 0, credit_amount: 0, discount: 0, returns_amount: 0, remarks: '',
+    branch_id: '', customer_id: '', sale_date: new Date().toISOString().slice(0, 10), type: 'cash',
+    cash_amount: 0, bank_amount: 0, credit_amount: 0, discount: 0, returns_amount: 0, remarks: '', due_date: '',
   });
+  const [customers, setCustomers] = useState([]);
   const [attachmentsModal, setAttachmentsModal] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -37,14 +38,15 @@ export default function Sales() {
 
   useEffect(() => {
     api.get('/branches?active=1').then(setBranches).catch(() => {});
+    api.get('/receivables/customers').then(setCustomers).catch(() => {});
   }, []);
 
   useEffect(() => { setLoading(false); }, [list]);
 
   const openAdd = () => {
     setForm({
-      branch_id: branches[0]?.id || '', sale_date: new Date().toISOString().slice(0, 10), type: 'cash',
-      cash_amount: 0, bank_amount: 0, credit_amount: 0, discount: 0, returns_amount: 0, remarks: '',
+      branch_id: branches[0]?.id || '', customer_id: '', sale_date: new Date().toISOString().slice(0, 10), type: 'cash',
+      cash_amount: 0, bank_amount: 0, credit_amount: 0, discount: 0, returns_amount: 0, remarks: '', due_date: '',
     });
     setModal('add');
   };
@@ -53,6 +55,7 @@ export default function Sales() {
     setForm({
       id: s.id,
       branch_id: s.branch_id,
+      customer_id: s.customer_id || '',
       sale_date: s.sale_date,
       type: s.type || 'cash',
       cash_amount: s.cash_amount ?? 0,
@@ -61,6 +64,7 @@ export default function Sales() {
       discount: s.discount ?? 0,
       returns_amount: s.returns_amount ?? 0,
       remarks: s.remarks || '',
+      due_date: s.due_date || '',
     });
     setModal('edit');
   };
@@ -73,9 +77,19 @@ export default function Sales() {
   const save = async (e) => {
     e.preventDefault();
     setErr('');
+    const creditAmt = Number(form.credit_amount) || 0;
+    if (creditAmt > 0 && !form.customer_id) {
+      setErr('Please select a customer for credit sales (amount will be added to Receivables).');
+      return;
+    }
     try {
       if (modal === 'add') {
-        await api.post('/sales', { ...form, branch_id: form.branch_id || null });
+        await api.post('/sales', {
+          ...form,
+          branch_id: form.branch_id || null,
+          customer_id: form.customer_id || null,
+          due_date: form.due_date || null,
+        });
       } else {
         const { id, ...patch } = form;
         await api.patch(`/sales/${id}`, patch);
@@ -189,6 +203,7 @@ export default function Sales() {
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Date</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Branch</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">Customer</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Type</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-700">Cash</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-700">Bank</th>
@@ -205,6 +220,7 @@ export default function Sales() {
                 <tr key={s.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">{s.sale_date}</td>
                   <td className="px-4 py-3">{s.branch_name || '–'}</td>
+                  <td className="px-4 py-3">{s.customer_name || '–'}</td>
                   <td className="px-4 py-3 capitalize">{s.type || 'cash'}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmt(s.cash_amount)}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmt(s.bank_amount)}</td>
@@ -252,10 +268,25 @@ export default function Sales() {
                   <option value="credit">Credit</option>
                 </select>
               </div>
+              {(Number(form.credit_amount) || 0) > 0 && (
+                <div className="grid grid-cols-2 gap-4 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+                  <div>
+                    <label className="label">Customer * (for Receivables)</label>
+                    <select className="input" value={form.customer_id} onChange={(e) => setForm({ ...form, customer_id: e.target.value })} required={ (Number(form.credit_amount) || 0) > 0 }>
+                      <option value="">Select customer</option>
+                      {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Due Date (optional)</label>
+                    <input type="date" className="input" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-3 gap-4">
                 <div><label className="label">Cash</label><input type="number" step="0.01" className="input" value={form.cash_amount} onChange={(e) => setForm({ ...form, cash_amount: e.target.value })} /></div>
                 <div><label className="label">Bank</label><input type="number" step="0.01" className="input" value={form.bank_amount} onChange={(e) => setForm({ ...form, bank_amount: e.target.value })} /></div>
-                <div><label className="label">Credit</label><input type="number" step="0.01" className="input" value={form.credit_amount} onChange={(e) => setForm({ ...form, credit_amount: e.target.value })} /></div>
+                <div><label className="label">Credit (→ Receivables)</label><input type="number" step="0.01" className="input" value={form.credit_amount} onChange={(e) => setForm({ ...form, credit_amount: e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="label">Discount</label><input type="number" step="0.01" className="input" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} /></div>

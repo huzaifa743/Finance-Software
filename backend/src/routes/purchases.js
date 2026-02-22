@@ -1,10 +1,27 @@
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
+import multer from 'multer';
+import { fileURLToPath } from 'url';
 import db from '../db/database.js';
 import { authenticate, requireRole, requireNotAuditor } from '../middleware/auth.js';
 import { logActivity } from '../middleware/activityLog.js';
 import { getNextVoucherNumber, appendVoucherNote } from '../utils/autoNumbering.js';
 
 const router = Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const purchasesUploadDir = path.join(__dirname, '../../data/uploads/purchases');
+if (!fs.existsSync(purchasesUploadDir)) fs.mkdirSync(purchasesUploadDir, { recursive: true });
+
+const sanitizeName = (name) => (name || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, purchasesUploadDir),
+    filename: (req, file, cb) => cb(null, `${Date.now()}_${sanitizeName(file.originalname)}`),
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 router.get('/suppliers', authenticate, (req, res) => {
   const rows = db.prepare('SELECT * FROM suppliers ORDER BY name').all();
@@ -13,9 +30,11 @@ router.get('/suppliers', authenticate, (req, res) => {
 
 router.post('/suppliers', authenticate, requireNotAuditor, logActivity('create', 'suppliers', req => req.body?.name || ''), (req, res) => {
   try {
-    const { name, contact, address } = req.body;
-    const r = db.prepare('INSERT INTO suppliers (name, contact, address) VALUES (?, ?, ?)').run(name, contact || null, address || null);
-    res.status(201).json({ id: r.lastInsertRowid, name, contact, address });
+    const { name, address, phone, vat_number, contact } = req.body;
+    const r = db.prepare('INSERT INTO suppliers (name, contact, address, phone, vat_number) VALUES (?, ?, ?, ?, ?)').run(
+      name, contact || null, address || null, phone || null, vat_number || null
+    );
+    res.status(201).json({ id: r.lastInsertRowid, name, address, phone, vat_number });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -26,7 +45,7 @@ router.patch('/suppliers/:id', authenticate, requireNotAuditor, logActivity('upd
     const { id } = req.params;
     const updates = [];
     const params = [];
-    ['name', 'contact', 'address'].forEach(f => {
+    ['name', 'contact', 'address', 'phone', 'vat_number'].forEach(f => {
       if (req.body[f] !== undefined) { updates.push(`${f} = ?`); params.push(req.body[f]); }
     });
     if (!updates.length) return res.status(400).json({ error: 'No updates.' });
@@ -168,7 +187,50 @@ router.get('/:id', authenticate, (req, res) => {
     WHERE p.id = ?
   `).get(req.params.id);
   if (!row) return res.status(404).json({ error: 'Purchase not found.' });
-  res.json(row);
+  const att = db.prepare('SELECT * FROM purchase_attachments WHERE purchase_id = ?').all(row.id);
+  const attachments = att.map((a) => ({ ...a, url: a.path ? `/uploads/${a.path}` : null }));
+  res.json({ ...row, attachments });
+});
+
+router.get('/:id/attachments', authenticate, (req, res) => {
+  const purchase = db.prepare('SELECT id FROM purchases WHERE id = ?').get(req.params.id);
+  if (!purchase) return res.status(404).json({ error: 'Purchase not found.' });
+  const rows = db.prepare('SELECT * FROM purchase_attachments WHERE purchase_id = ? ORDER BY id DESC').all(req.params.id);
+  res.json(rows.map((a) => ({ ...a, url: a.path ? `/uploads/${a.path}` : null })));
+});
+
+router.post('/:id/attachments', authenticate, requireNotAuditor, upload.array('files', 10), logActivity('attach', 'purchases', req => req.params.id), (req, res) => {
+  try {
+    const purchase = db.prepare('SELECT id FROM purchases WHERE id = ?').get(req.params.id);
+    if (!purchase) return res.status(404).json({ error: 'Purchase not found.' });
+    const files = req.files || [];
+    if (!files.length) return res.status(400).json({ error: 'No files uploaded.' });
+    const stmt = db.prepare('INSERT INTO purchase_attachments (purchase_id, filename, path) VALUES (?, ?, ?)');
+    const inserted = [];
+    for (const f of files) {
+      const relPath = `purchases/${f.filename}`;
+      const r = stmt.run(purchase.id, f.originalname, relPath);
+      inserted.push({ id: r.lastInsertRowid, filename: f.originalname, path: relPath, url: `/uploads/${relPath}` });
+    }
+    res.status(201).json({ ok: true, attachments: inserted });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/:id/attachments/:attId', authenticate, requireNotAuditor, logActivity('delete_attachment', 'purchases', req => req.params.attId), (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM purchase_attachments WHERE id = ? AND purchase_id = ?').get(req.params.attId, req.params.id);
+    if (!row) return res.status(404).json({ error: 'Attachment not found.' });
+    if (row.path) {
+      const filePath = path.join(__dirname, '../../data/uploads', row.path);
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+    db.prepare('DELETE FROM purchase_attachments WHERE id = ?').run(req.params.attId);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 router.post('/', authenticate, requireNotAuditor, logActivity('create', 'purchases', req => req.body?.invoice_no || ''), (req, res) => {
