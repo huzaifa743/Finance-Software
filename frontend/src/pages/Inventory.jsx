@@ -12,6 +12,7 @@ export default function Inventory() {
   const [saleModal, setSaleModal] = useState(null);
   const [saleEditModal, setSaleEditModal] = useState(null);
   const [filters, setFilters] = useState({ product_id: '', branch_id: '', from: '', to: '' });
+  const [summary, setSummary] = useState([]);
   const [productSearch, setProductSearch] = useState('');
   const [productForm, setProductForm] = useState({ name: '', unit_price: 0 });
   const [saleForm, setSaleForm] = useState({ product_id: '', branch_id: '', sale_date: '', quantity: '', unit_price: '' });
@@ -28,6 +29,11 @@ export default function Inventory() {
     if (filters.from) q.set('from', filters.from);
     if (filters.to) q.set('to', filters.to);
     api.get(`/inventory/sales?${q}`).then(setSales).catch((e) => setErr(e.message));
+    const qSummary = new URLSearchParams();
+    if (filters.branch_id) qSummary.set('branch_id', filters.branch_id);
+    if (filters.from) qSummary.set('from', filters.from);
+    if (filters.to) qSummary.set('to', filters.to);
+    api.get(`/inventory/sales/summary?${qSummary}`).then(setSummary).catch(() => setSummary([]));
   };
 
   useEffect(() => { loadProducts(); loadSales(); api.get('/branches?active=1').then(setBranches).catch(() => {}); }, []);
@@ -192,6 +198,37 @@ export default function Inventory() {
           <input type="date" className="input w-40" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
           <input type="date" className="input w-40" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
         </div>
+        {summary.length > 0 && (
+          <div className="mb-6">
+            <h4 className="text-sm font-semibold text-slate-800 mb-2">Summary by product (selected period)</h4>
+            <p className="text-xs text-slate-500 mb-2">Total quantity sold and total amount per product for the selected date range.</p>
+            <div className="overflow-x-auto border border-slate-200 rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium text-slate-700">Product</th>
+                    <th className="text-right px-4 py-2 font-medium text-slate-700">Total quantity sold</th>
+                    <th className="text-right px-4 py-2 font-medium text-slate-700">Total amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {[...summary]
+                    .sort((a, b) => (Number(b.total_amount) || 0) - (Number(a.total_amount) || 0))
+                    .map((row) => (
+                    <tr key={row.product_id || row.product_name} className="hover:bg-slate-50">
+                      <td className="px-4 py-2 font-medium">{row.product_name || '–'}</td>
+                      <td className="px-4 py-2 text-right font-mono">{fmt(row.total_quantity_sold)}</td>
+                      <td className="px-4 py-2 text-right font-mono">{fmt(row.total_amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-xs font-medium text-slate-700">
+              Grand total quantity: {fmt(summary.reduce((a, r) => a + (Number(r.total_quantity_sold) || 0), 0))} · Grand total amount: {fmt(summary.reduce((a, r) => a + (Number(r.total_amount) || 0), 0))}
+            </p>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">

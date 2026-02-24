@@ -17,6 +17,7 @@ export default function Purchases() {
   const [attachmentsModal, setAttachmentsModal] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [query, setQuery] = useState('');
 
   const load = () => {
     const q = new URLSearchParams();
@@ -139,6 +140,23 @@ export default function Purchases() {
   };
 
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const normalize = (v) => String(v || '').toLowerCase();
+  const needle = query.trim().toLowerCase();
+  const filteredList = needle
+    ? list.filter((p) => {
+        const hay = [
+          p.supplier_name,
+          p.branch_name,
+          p.invoice_no,
+          p.remarks,
+          p.purchase_date,
+          p.due_date,
+          p.total_amount,
+          p.balance,
+        ].map(normalize).join(' ');
+        return hay.includes(needle);
+      })
+    : list;
 
   return (
     <div className="space-y-6">
@@ -177,7 +195,7 @@ export default function Purchases() {
       )}
 
       <div className="card p-4">
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-4 items-center">
           <select className="input w-48" value={filters.supplier_id} onChange={(e) => setFilters({ ...filters, supplier_id: e.target.value })}>
             <option value="">All suppliers</option>
             {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -188,6 +206,12 @@ export default function Purchases() {
           </select>
           <input type="date" className="input w-40" value={filters.from} onChange={(e) => setFilters({ ...filters, from: e.target.value })} />
           <input type="date" className="input w-40" value={filters.to} onChange={(e) => setFilters({ ...filters, to: e.target.value })} />
+          <input
+            className="input w-full md:w-[260px]"
+            placeholder="Search by supplier, invoice, remarks"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
           <button onClick={load} className="btn-secondary">Apply</button>
         </div>
       </div>
@@ -209,7 +233,7 @@ export default function Purchases() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {list.map((p) => (
+              {filteredList.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3">{p.purchase_date}</td>
                   <td className="px-4 py-3 font-medium">{p.supplier_name}</td>
@@ -230,7 +254,7 @@ export default function Purchases() {
             </tbody>
           </table>
         </div>
-        {!list.length && !loading && <p className="p-8 text-center text-slate-500">No purchases.</p>}
+        {!filteredList.length && !loading && <p className="p-8 text-center text-slate-500">No purchases.</p>}
       </div>
 
       {modal && (

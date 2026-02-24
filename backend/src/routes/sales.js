@@ -36,7 +36,16 @@ function netSales(row) {
 router.get('/', authenticate, (req, res) => {
   const { branch_id, from, to, type } = req.query;
   let sql = `
-    SELECT s.*, b.name as branch_name, c.name as customer_name
+    SELECT
+      s.*,
+      b.name as branch_name,
+      c.name as customer_name,
+      (
+        SELECT GROUP_CONCAT(bk.name || ':' || printf('%.0f', sbs.amount), ', ')
+        FROM sale_bank_splits sbs
+        JOIN banks bk ON bk.id = sbs.bank_id
+        WHERE sbs.sale_id = s.id
+      ) as bank_split_label
     FROM sales s
     LEFT JOIN branches b ON s.branch_id = b.id
     LEFT JOIN customers c ON s.customer_id = c.id
@@ -118,7 +127,13 @@ router.get('/:id', authenticate, (req, res) => {
     ...a,
     url: a.path ? `/uploads/${a.path}` : null,
   }));
-  res.json({ ...row, attachments });
+  const bankSplits = db.prepare(`
+    SELECT id, bank_id, amount
+    FROM sale_bank_splits
+    WHERE sale_id = ?
+    ORDER BY id
+  `).all(row.id);
+  res.json({ ...row, attachments, bank_splits: bankSplits });
 });
 
 router.get('/:id/attachments', authenticate, (req, res) => {
@@ -176,22 +191,62 @@ router.post('/:id/lock', authenticate, requireRole('Super Admin', 'Finance Manag
 
 router.post('/', authenticate, requireNotAuditor, logActivity('create', 'sales', req => req.body?.sale_date || ''), (req, res) => {
   try {
-    const { branch_id, customer_id, sale_date, type, cash_amount, bank_amount, credit_amount, discount, returns_amount, remarks, due_date } = req.body;
+    const { branch_id, customer_id, bank_id, sale_date, type, cash_amount, bank_amount, credit_amount, discount, returns_amount, remarks, due_date, bank_splits } = req.body;
     const cash = parseFloat(cash_amount) || 0;
-    const bank = parseFloat(bank_amount) || 0;
+    let bank = parseFloat(bank_amount) || 0;
     const credit = parseFloat(credit_amount) || 0;
     const disc = parseFloat(discount) || 0;
     const ret = parseFloat(returns_amount) || 0;
+
+    const splitsArray = Array.isArray(bank_splits) ? bank_splits : [];
+    const validSplits = splitsArray
+      .map((s) => ({
+        bank_id: s.bank_id ? parseInt(s.bank_id, 10) : null,
+        amount: parseFloat(s.amount) || 0,
+      }))
+      .filter((s) => s.bank_id && s.amount > 0);
+
+    const totalSplitBank = validSplits.reduce((sum, s) => sum + s.amount, 0);
+    if (validSplits.length > 0) {
+      bank = totalSplitBank;
+    }
+
     const net = Math.max(0, cash + bank + credit - disc - ret);
+
     if (credit > 0 && !customer_id) {
       return res.status(400).json({ error: 'Customer is required when entering credit sales (amount will be added to Receivables).' });
     }
+
+    if (validSplits.length > 0) {
+      for (const s of validSplits) {
+        const bankRow = db.prepare('SELECT id FROM banks WHERE id = ?').get(s.bank_id);
+        if (!bankRow) return res.status(400).json({ error: 'Selected bank account not found.' });
+      }
+    } else {
+      const bankIdSingle = bank_id ? parseInt(bank_id, 10) : null;
+      if (bank > 0 && !bankIdSingle) {
+        return res.status(400).json({ error: 'Bank account is required when entering bank amount.' });
+      }
+      if (bank > 0 && bankIdSingle) {
+        const bankRow = db.prepare('SELECT id FROM banks WHERE id = ?').get(bankIdSingle);
+        if (!bankRow) return res.status(400).json({ error: 'Selected bank account not found.' });
+      }
+    }
+
+    const primaryBankId =
+      validSplits.length > 0
+        ? validSplits[0].bank_id
+        : bank_id
+        ? parseInt(bank_id, 10)
+        : null;
+
     const r = db.prepare(`
-      INSERT INTO sales (branch_id, customer_id, sale_date, type, cash_amount, bank_amount, credit_amount, discount, returns_amount, net_sales, remarks, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO sales (branch_id, customer_id, bank_id, sale_date, type, cash_amount, bank_amount, credit_amount, discount, returns_amount, net_sales, remarks, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       branch_id || null,
       customer_id || null,
+      primaryBankId || null,
       sale_date,
       type || 'cash',
       cash,
@@ -204,6 +259,7 @@ router.post('/', authenticate, requireNotAuditor, logActivity('create', 'sales',
       req.user?.id || null
     );
     const saleId = r.lastInsertRowid;
+
     // Auto-create receivable when credit amount > 0 (credit sale → receivables)
     if (credit > 0 && customer_id && saleId) {
       db.prepare(`
@@ -211,6 +267,31 @@ router.post('/', authenticate, requireNotAuditor, logActivity('create', 'sales',
         VALUES (?, ?, ?, ?, ?, 'pending')
       `).run(customer_id, saleId, branch_id || null, credit, due_date || null);
     }
+
+    // Record bank deposits and splits for bank portion of sale
+    if (bank > 0 && saleId) {
+      if (validSplits.length > 0) {
+        const insertSplit = db.prepare(`
+          INSERT INTO sale_bank_splits (sale_id, bank_id, amount)
+          VALUES (?, ?, ?)
+        `);
+        const insertTxn = db.prepare(`
+          INSERT INTO bank_transactions (bank_id, type, amount, transaction_date, reference, description)
+          VALUES (?, 'deposit', ?, ?, ?, ?)
+        `);
+        const txnDate = sale_date || new Date().toISOString().slice(0, 10);
+        for (const s of validSplits) {
+          insertSplit.run(saleId, s.bank_id, s.amount);
+          insertTxn.run(s.bank_id, s.amount, txnDate, `sale-${saleId}`, 'Sale collection');
+        }
+      } else if (primaryBankId) {
+        db.prepare(`
+          INSERT INTO bank_transactions (bank_id, type, amount, transaction_date, reference, description)
+          VALUES (?, 'deposit', ?, ?, ?, ?)
+        `).run(primaryBankId, bank, sale_date || new Date().toISOString().slice(0, 10), `sale-${saleId}`, 'Sale collection');
+      }
+    }
+
     res.status(201).json({ id: saleId, net_sales: net });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -222,18 +303,59 @@ router.patch('/:id', authenticate, requireNotAuditor, logActivity('update', 'sal
     const existing = db.prepare('SELECT * FROM sales WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Sale not found.' });
     if (existing.is_locked) return res.status(400).json({ error: 'Sale is locked.' });
-    const { sale_date, type, customer_id, cash_amount, bank_amount, credit_amount, discount, returns_amount, remarks } = req.body;
+    const { sale_date, type, customer_id, cash_amount, bank_amount, credit_amount, discount, returns_amount, remarks, bank_id, bank_splits } = req.body;
     const cash = cash_amount !== undefined ? parseFloat(cash_amount) || 0 : existing.cash_amount;
-    const bank = bank_amount !== undefined ? parseFloat(bank_amount) || 0 : existing.bank_amount;
+    let bank = bank_amount !== undefined ? parseFloat(bank_amount) || 0 : existing.bank_amount;
     const credit = credit_amount !== undefined ? parseFloat(credit_amount) || 0 : existing.credit_amount;
     const disc = discount !== undefined ? parseFloat(discount) || 0 : existing.discount;
     const ret = returns_amount !== undefined ? parseFloat(returns_amount) || 0 : existing.returns_amount;
+
+    const splitsArray = Array.isArray(bank_splits) ? bank_splits : [];
+    const validSplits = splitsArray
+      .map((s) => ({
+        bank_id: s.bank_id ? parseInt(s.bank_id, 10) : null,
+        amount: parseFloat(s.amount) || 0,
+      }))
+      .filter((s) => s.bank_id && s.amount > 0);
+
+    const totalSplitBank = validSplits.reduce((sum, s) => sum + s.amount, 0);
+    if (validSplits.length > 0) {
+      bank = totalSplitBank;
+    }
+
     const net = Math.max(0, cash + bank + credit - disc - ret);
+
     if (credit > 0 && req.body.customer_id !== undefined && !req.body.customer_id) {
       return res.status(400).json({ error: 'Customer is required for credit sales.' });
     }
+
+    if (validSplits.length > 0) {
+      for (const s of validSplits) {
+        const bankRow = db.prepare('SELECT id FROM banks WHERE id = ?').get(s.bank_id);
+        if (!bankRow) return res.status(400).json({ error: 'Selected bank account not found.' });
+      }
+    } else {
+      const bankIdSingle = bank_id !== undefined ? (bank_id ? parseInt(bank_id, 10) : null) : existing.bank_id;
+      if (bank > 0 && !bankIdSingle) {
+        return res.status(400).json({ error: 'Bank account is required when entering bank amount.' });
+      }
+      if (bank > 0 && bankIdSingle) {
+        const bankRow = db.prepare('SELECT id FROM banks WHERE id = ?').get(bankIdSingle);
+        if (!bankRow) return res.status(400).json({ error: 'Selected bank account not found.' });
+      }
+    }
+
+    const primaryBankId =
+      validSplits.length > 0
+        ? validSplits[0].bank_id
+        : bank_id !== undefined
+        ? bank_id
+          ? parseInt(bank_id, 10)
+          : null
+        : existing.bank_id;
+
     db.prepare(`
-      UPDATE sales SET sale_date=?, type=?, customer_id=?, cash_amount=?, bank_amount=?, credit_amount=?, discount=?, returns_amount=?, net_sales=?, remarks=?, updated_at=?
+      UPDATE sales SET sale_date=?, type=?, customer_id=?, cash_amount=?, bank_amount=?, credit_amount=?, discount=?, returns_amount=?, net_sales=?, remarks=?, bank_id=?, updated_at=?
       WHERE id=?
     `).run(
       sale_date ?? existing.sale_date,
@@ -246,9 +368,38 @@ router.patch('/:id', authenticate, requireNotAuditor, logActivity('update', 'sal
       ret,
       net,
       remarks !== undefined ? remarks : existing.remarks,
+      primaryBankId || null,
       new Date().toISOString(),
       req.params.id
     );
+
+    // Replace bank splits and bank transactions for this sale
+    db.prepare('DELETE FROM sale_bank_splits WHERE sale_id = ?').run(req.params.id);
+    db.prepare("DELETE FROM bank_transactions WHERE reference = ? AND type = 'deposit'").run(`sale-${req.params.id}`);
+
+    if (bank > 0) {
+      const effectiveDate = sale_date ?? existing.sale_date ?? new Date().toISOString().slice(0, 10);
+      if (validSplits.length > 0) {
+        const insertSplit = db.prepare(`
+          INSERT INTO sale_bank_splits (sale_id, bank_id, amount)
+          VALUES (?, ?, ?)
+        `);
+        const insertTxn = db.prepare(`
+          INSERT INTO bank_transactions (bank_id, type, amount, transaction_date, reference, description)
+          VALUES (?, 'deposit', ?, ?, ?, ?)
+        `);
+        for (const s of validSplits) {
+          insertSplit.run(req.params.id, s.bank_id, s.amount);
+          insertTxn.run(s.bank_id, s.amount, effectiveDate, `sale-${req.params.id}`, 'Sale collection');
+        }
+      } else if (primaryBankId) {
+        db.prepare(`
+          INSERT INTO bank_transactions (bank_id, type, amount, transaction_date, reference, description)
+          VALUES (?, 'deposit', ?, ?, ?, ?)
+        `).run(primaryBankId, bank, effectiveDate, `sale-${req.params.id}`, 'Sale collection');
+      }
+    }
+
     res.json({ ok: true, net_sales: net });
   } catch (e) {
     res.status(500).json({ error: e.message });

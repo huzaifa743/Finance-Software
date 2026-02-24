@@ -1,15 +1,53 @@
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
+import multer from 'multer';
+import { fileURLToPath } from 'url';
 import db from '../db/database.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logActivity } from '../middleware/activityLog.js';
+import { brandingDir, getLogoPath } from '../utils/companyBranding.js';
 
 const router = Router();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+if (!fs.existsSync(brandingDir)) fs.mkdirSync(brandingDir, { recursive: true });
+
+const LOGO_MAX_SIZE = 15 * 1024 * 1024; // 15MB
+const logoStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, brandingDir),
+  filename: (req, file, cb) => cb(null, 'logo.png'),
+});
+const uploadLogo = multer({
+  storage: logoStorage,
+  limits: { fileSize: LOGO_MAX_SIZE },
+  fileFilter: (req, file, cb) => {
+    const allowed = /\.(png|jpg|jpeg|webp)$/i.test(file.originalname);
+    cb(null, !!allowed);
+  },
+});
 
 router.get('/', authenticate, (req, res) => {
   const rows = db.prepare('SELECT key, value FROM system_settings').all();
   const settings = {};
   rows.forEach(r => { settings[r.key] = r.value; });
   res.json(settings);
+});
+
+router.get('/logo', authenticate, (req, res) => {
+  const logoPath = getLogoPath();
+  if (!logoPath) return res.status(404).json({ error: 'No logo set.' });
+  res.sendFile(path.resolve(logoPath));
+});
+
+router.post('/logo', authenticate, requireRole('Super Admin', 'Finance Manager'), uploadLogo.single('logo'), logActivity('upload_logo', 'settings', () => 'logo'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded. Use field name "logo".' });
+    res.json({ ok: true, message: 'Logo updated.' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 function buildBackupPayload() {

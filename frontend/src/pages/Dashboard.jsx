@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { TrendingUp, Landmark, Receipt, Truck, DollarSign } from 'lucide-react';
+import { TrendingUp, Landmark, Receipt, Truck, DollarSign, WalletCards, PiggyBank } from 'lucide-react';
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
@@ -18,15 +18,30 @@ export default function Dashboard() {
 
   const { widgets, branchComparison, bankAccounts, date } = data;
 
-  const cards = [
+  const baseCards = [
     { label: 'Sales Today', value: widgets.salesToday, icon: DollarSign, color: 'bg-primary-500' },
+    { label: 'Cash Sales Today', value: widgets.salesTodayCash, icon: WalletCards, color: 'bg-emerald-500' },
+    { label: 'Bank Sales Today', value: widgets.salesTodayBank, icon: Landmark, color: 'bg-blue-500' },
     { label: 'Sales Today on Credit', value: widgets.salesTodayCredit, icon: Receipt, color: 'bg-amber-500' },
     { label: 'Sales on Credit (Receivable)', value: widgets.salesOnCredit, icon: Receipt, color: 'bg-violet-500' },
     { label: 'Sales (Month)', value: widgets.salesMonth, icon: TrendingUp, color: 'bg-accent-500' },
-    { label: 'Net Profit (Month)', value: widgets.netProfit, icon: TrendingUp, color: 'bg-emerald-500' },
-    { label: 'Bank Balance', value: widgets.bankBalance, icon: Landmark, color: 'bg-blue-500' },
+    { label: 'Cash Sales (Month)', value: widgets.salesMonthCash, icon: WalletCards, color: 'bg-emerald-500' },
+    { label: 'Bank Sales (Month)', value: widgets.salesMonthBank, icon: Landmark, color: 'bg-blue-500' },
+    { label: 'Net Profit (Month)', value: widgets.netProfit, icon: TrendingUp, color: 'bg-emerald-600' },
+    { label: 'Cash in Hand', value: widgets.cashInHand, icon: PiggyBank, color: 'bg-lime-500' },
+    { label: 'Bank Balance', value: widgets.bankBalance, icon: Landmark, color: 'bg-blue-600' },
     { label: 'Payables', value: widgets.payables, icon: Truck, color: 'bg-rose-500' },
   ];
+
+  const bankCards = (Array.isArray(bankAccounts) ? bankAccounts : []).map((b) => ({
+    label: b.name,
+    subLabel: b.account_number || '–',
+    value: b.balance,
+    icon: Landmark,
+    color: 'bg-blue-500',
+  }));
+
+  const cards = [...baseCards, ...bankCards];
 
   const branchData = (branchComparison || []).map((b) => ({ name: b.name || 'N/A', total: parseFloat(b.total) || 0 }));
 
@@ -44,11 +59,12 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {cards.map(({ label, value, icon: Icon, color }) => (
+        {cards.map(({ label, subLabel, value, icon: Icon, color }) => (
           <div key={label} className="card p-5">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-500">{label}</p>
+                {subLabel && <p className="mt-0.5 text-xs text-slate-400">{subLabel}</p>}
                 <p className="mt-1 text-xl font-bold text-slate-900">{fmt(value)}</p>
               </div>
               <div className={`rounded-lg p-2 ${color} text-white`}><Icon className="w-5 h-5" /></div>
@@ -56,32 +72,6 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
-
-      {Array.isArray(bankAccounts) && bankAccounts.length > 0 && (
-        <div className="card p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Bank Accounts</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-slate-700">Bank</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-700">Account</th>
-                  <th className="text-right px-4 py-3 font-medium text-slate-700">Balance</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {bankAccounts.map((b) => (
-                  <tr key={b.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium">{b.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{b.account_number || '–'}</td>
-                    <td className="px-4 py-3 text-right font-mono">{fmt(b.balance)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="card p-6">

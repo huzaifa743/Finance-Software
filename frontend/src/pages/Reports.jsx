@@ -12,6 +12,7 @@ export default function Reports() {
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [branchId, setBranchId] = useState('');
   const [data, setData] = useState(null);
+  const [inventorySummary, setInventorySummary] = useState([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [branches, setBranches] = useState([]);
@@ -22,6 +23,7 @@ export default function Reports() {
     setLoading(true);
     setErr('');
     setData(null);
+    setInventorySummary([]);
     const run = () => setLoading(false);
     const append = (base, extra) => (extra ? `${base}${base.includes('?') ? '&' : '?'}${extra}` : base);
     if (module === 'sales') {
@@ -34,34 +36,76 @@ export default function Reports() {
       else if (type === 'supplier') api.get(append(`/purchases/reports/supplier-wise`, from && to ? `from=${from}&to=${to}` : '')).then((d) => setData(Array.isArray(d) ? { rows: d, total: null } : d)).catch((e) => setErr(e.message)).finally(run);
       else api.get(append(`/purchases?from=${from}&to=${to}`, branchId ? `branch_id=${branchId}` : '')).then((d) => setData({ rows: d, total: d.reduce((a, r) => a + (Number(r.total_amount) || 0), 0) })).catch((e) => setErr(e.message)).finally(run);
     } else if (module === 'inventory') {
-      api.get(append(`/inventory/sales?from=${from}&to=${to}`, branchId ? `branch_id=${branchId}` : ''))
-        .then((d) => {
-          const rows = (d || []).map((r) => ({
-            'Date when sold': r.sale_date,
-            'Product': r.product_name,
-            'Sold quantity': r.quantity,
-            'Unit price': r.unit_price,
-            'Total': r.total,
-            'Branch': r.branch_name,
-          }));
-          setData({ rows, total: (d || []).reduce((a, r) => a + (Number(r.total) || 0), 0) });
-        })
+      const summaryQs = new URLSearchParams();
+      if (from) summaryQs.set('from', from);
+      if (to) summaryQs.set('to', to);
+      if (branchId) summaryQs.set('branch_id', branchId);
+      Promise.all([
+        api.get(append(`/inventory/sales?from=${from}&to=${to}`, branchId ? `branch_id=${branchId}` : '')),
+        api.get(`/inventory/sales/summary?${summaryQs}`).catch(() => []),
+      ]).then(([d, sum]) => {
+        const rows = (d || []).map((r) => ({
+          'Date when sold': r.sale_date,
+          'Product': r.product_name,
+          'Sold quantity': r.quantity,
+          'Unit price': r.unit_price,
+          'Total': r.total,
+          'Branch': r.branch_name,
+        }));
+        setData({ rows, total: (d || []).reduce((a, r) => a + (Number(r.total) || 0), 0) });
+        setInventorySummary(Array.isArray(sum) ? sum : []);
+      }).catch((e) => setErr(e.message)).finally(run);
+    } else if (module === 'branch_ledger') {
+      const qs = from && to ? `from=${from}&to=${to}` : '';
+      api.get(append('/receivables/branch-ledger', qs))
+        .then((d) => (Array.isArray(d) ? { rows: d, total: d.reduce((a, r) => a + (Number(r.pending_balance) || 0), 0) } : d))
+        .then(setData)
+        .catch((e) => setErr(e.message))
+        .finally(run);
+    } else if (module === 'daily_combined') {
+      api
+        .get(append(`/dashboard/reports/daily-combined?date=${date}`, branchId ? `branch_id=${branchId}` : ''))
+        .then(setData)
         .catch((e) => setErr(e.message))
         .finally(run);
     } else run();
   };
 
   const exportData = async (fmt) => {
-    const q = new URLSearchParams({ type: fmt, module });
-    if (from) q.set('from', from);
-    if (to) q.set('to', to);
-    if (branchId) q.set('branch_id', branchId);
     try {
-      const res = await fetch(`/api/dashboard/export?${q}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      let url = '';
+      let fileModule = module;
+      if (module === 'branch_ledger') {
+        const q = new URLSearchParams({ type: fmt });
+        if (from) q.set('from', from);
+        if (to) q.set('to', to);
+        url = `/api/receivables/branch-ledger/export?${q.toString()}`;
+      } else {
+        const q = new URLSearchParams({ type: fmt, module });
+        if (module === 'daily_combined') {
+          q.set('date', date);
+          if (branchId) q.set('branch_id', branchId);
+        } else {
+          if (from) q.set('from', from);
+          if (to) q.set('to', to);
+          if (branchId) q.set('branch_id', branchId);
+        }
+        url = `/api/dashboard/export?${q.toString()}`;
+      }
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      if (!res.ok) {
+        const errText = await res.text();
+        let msg = res.statusText;
+        try {
+          const d = JSON.parse(errText);
+          if (d.error) msg = d.error;
+        } catch (_) {}
+        throw new Error(msg || 'Export failed');
+      }
       const blob = await res.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `report-${module}-${Date.now()}.${fmt}`;
+      a.download = `report-${fileModule}-${Date.now()}.${fmt}`;
       a.click();
       URL.revokeObjectURL(a.href);
     } catch (e) {
@@ -78,13 +122,15 @@ export default function Reports() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Reports & Analytics</h1>
-          <p className="text-slate-500 mt-1">Daily, monthly, date-range; PDF / Excel / CSV export</p>
+          <p className="text-slate-500 mt-1">Daily, monthly, date-range; PDF / Excel export</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => exportData('csv')} className="btn-secondary"><FileDown className="w-4 h-4" /> CSV</button>
-          <button onClick={() => exportData('json')} className="btn-secondary"><FileDown className="w-4 h-4" /> JSON</button>
-          <button onClick={() => exportData('xlsx')} className="btn-secondary"><FileDown className="w-4 h-4" /> Excel</button>
-          <button onClick={() => exportData('pdf')} className="btn-secondary"><FileDown className="w-4 h-4" /> PDF</button>
+          <button onClick={() => exportData('xlsx')} className="btn-secondary">
+            <FileDown className="w-4 h-4" /> Excel
+          </button>
+          <button onClick={() => exportData('pdf')} className="btn-secondary">
+            <FileDown className="w-4 h-4" /> PDF
+          </button>
         </div>
       </div>
 
@@ -94,24 +140,30 @@ export default function Reports() {
         <div className="flex flex-wrap gap-4 items-end">
           <div>
             <label className="label">Module</label>
-            <select className="input w-40" value={module} onChange={(e) => {
+            <select className="input w-56" value={module} onChange={(e) => {
               const next = e.target.value;
               setModule(next);
               setData(null);
               if (next === 'inventory') setType('range');
+              if (next === 'daily_combined') setType('daily');
+              if (next === 'branch_ledger') setType('range');
+              setInventorySummary([]);
             }}>
               <option value="sales">Sales</option>
               <option value="purchases">Purchases</option>
               <option value="inventory">Inventory</option>
+              <option value="daily_combined">Daily combined (Sales + Purchases)</option>
+              <option value="branch_ledger">Branch-wise receivables ledger</option>
             </select>
           </div>
           <div>
             <label className="label">Report type</label>
             <select className="input w-40" value={type} onChange={(e) => { setType(e.target.value); setData(null); }}>
-              {module !== 'inventory' && <option value="daily">Daily</option>}
-              {module !== 'inventory' && <option value="monthly">Monthly</option>}
-              <option value="range">Date range</option>
+              {module !== 'inventory' && module !== 'daily_combined' && module !== 'branch_ledger' && <option value="daily">Daily</option>}
+              {module !== 'inventory' && module !== 'daily_combined' && module !== 'branch_ledger' && <option value="monthly">Monthly</option>}
+              {module !== 'daily_combined' && <option value="range">Date range</option>}
               {module === 'purchases' && <option value="supplier">Supplier-wise</option>}
+              {module === 'daily_combined' && <option value="daily">Daily</option>}
             </select>
           </div>
           {type === 'daily' && <div><label className="label">Date</label><input type="date" className="input w-40" value={date} onChange={(e) => setDate(e.target.value)} /></div>}
@@ -129,7 +181,12 @@ export default function Reports() {
           )}
           <div>
             <label className="label">Branch</label>
-            <select className="input w-40" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+            <select
+              className="input w-40"
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
+              disabled={module === 'branch_ledger'}
+            >
               <option value="">All</option>
               {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
@@ -138,12 +195,127 @@ export default function Reports() {
         </div>
       </div>
 
-      {data && (
+      {data && module === 'daily_combined' && (
+        <div className="card overflow-hidden">
+          <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+            <h3 className="font-semibold text-slate-900">
+              Daily combined — {data.date} {data.branch_id ? `(Branch ${data.branch_id})` : '(All branches)'}
+            </h3>
+          </div>
+          <div className="p-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-3">
+                <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Total sales</p>
+                <p className="mt-1 text-xl font-bold text-emerald-900">{fmt(data.salesTotal)}</p>
+              </div>
+              <div className="rounded-lg bg-amber-50 border border-amber-100 p-3">
+                <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">Total purchases</p>
+                <p className="mt-1 text-xl font-bold text-amber-900">{fmt(data.purchaseTotal)}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
+                <p className="text-xs font-medium text-slate-600 uppercase tracking-wide">Net (sales - purchases)</p>
+                <p className="mt-1 text-xl font-bold text-slate-900">
+                  {fmt((Number(data.salesTotal) || 0) - (Number(data.purchaseTotal) || 0))}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="text-sm font-semibold text-slate-800 mb-2">Sales</h4>
+                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  {data.salesRows && data.salesRows.length ? (
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700">Date</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700">Branch</th>
+                          <th className="px-3 py-2 text-right font-medium text-slate-700">Net sales</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {data.salesRows.map((r, i) => (
+                          <tr key={i}>
+                            <td className="px-3 py-1.5">{r.sale_date}</td>
+                            <td className="px-3 py-1.5">{r.branch_name || '–'}</td>
+                            <td className="px-3 py-1.5 text-right">{fmt(r.net_sales)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p className="p-3 text-xs text-slate-500 text-center">No sales for this day.</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-800 mb-2">Purchases</h4>
+                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  {data.purchaseRows && data.purchaseRows.length ? (
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700">Date</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-700">Branch</th>
+                          <th className="px-3 py-2 text-right font-medium text-slate-700">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {data.purchaseRows.map((r, i) => (
+                          <tr key={i}>
+                            <td className="px-3 py-1.5">{r.purchase_date}</td>
+                            <td className="px-3 py-1.5">{r.branch_name || '–'}</td>
+                            <td className="px-3 py-1.5 text-right">{fmt(r.total_amount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p className="p-3 text-xs text-slate-500 text-center">No purchases for this day.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {data && module !== 'daily_combined' && (
         <div className="card overflow-hidden">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
             <h3 className="font-semibold text-slate-900">{module === 'inventory' ? 'Inventory Sales — Date when sold · Sold quantity' : 'Report result'}</h3>
             {typeof total === 'number' && <p className="text-lg font-bold text-primary-600">Total: {fmt(total)}</p>}
           </div>
+          {module === 'inventory' && inventorySummary.length > 0 && (
+            <div className="p-4 border-b border-slate-200">
+              <h4 className="text-sm font-semibold text-slate-800 mb-2">Summary by product (selected period)</h4>
+              <p className="text-xs text-slate-500 mb-2">Total quantity sold and total amount per product for the selected date range.</p>
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium text-slate-700">Product</th>
+                      <th className="text-right px-4 py-2 font-medium text-slate-700">Total quantity sold</th>
+                      <th className="text-right px-4 py-2 font-medium text-slate-700">Total amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {[...inventorySummary]
+                      .sort((a, b) => (Number(b.total_amount) || 0) - (Number(a.total_amount) || 0))
+                      .map((row) => (
+                        <tr key={row.product_id || row.product_name} className="hover:bg-slate-50">
+                          <td className="px-4 py-2 font-medium">{row.product_name || '–'}</td>
+                          <td className="px-4 py-2 text-right font-mono">{fmt(row.total_quantity_sold)}</td>
+                          <td className="px-4 py-2 text-right font-mono">{fmt(row.total_amount)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-xs font-medium text-slate-700">
+                Grand total quantity: {fmt(inventorySummary.reduce((a, r) => a + (Number(r.total_quantity_sold) || 0), 0))} · Grand total amount: {fmt(inventorySummary.reduce((a, r) => a + (Number(r.total_amount) || 0), 0))}
+              </p>
+            </div>
+          )}
           <div className="overflow-x-auto">
             {rows.length ? (
               <table className="w-full text-sm">

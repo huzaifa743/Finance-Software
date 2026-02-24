@@ -8,6 +8,7 @@ const AUDIT_MODULES = ['', 'settings', 'sales', 'purchases', 'branches', 'users'
 const SETTINGS_DEFAULTS = {
   financial_year_start: '', financial_year_end: '',
   invoice_prefix: 'INV', voucher_prefix: 'VCH', invoice_counter: '1', voucher_counter: '1',
+  company_name: '', company_phone: '', company_address: '', company_email: '', company_website: '', company_tax_number: '',
 };
 
 function Section({ title, children }) {
@@ -32,6 +33,9 @@ export default function Settings() {
   const [backupLoading, setBackupLoading] = useState(false);
   const [restoreFile, setRestoreFile] = useState(null);
   const [restoreLoading, setRestoreLoading] = useState(false);
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoUrl, setLogoUrl] = useState(null);
 
   const update = (k, v) => setSettings((s) => ({ ...s, [k]: v }));
 
@@ -40,6 +44,11 @@ export default function Settings() {
       .then((s) => setSettings({ ...SETTINGS_DEFAULTS, ...s }))
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
+    const token = localStorage.getItem('token');
+    fetch('/api/settings/logo', { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => (r.ok ? r.blob() : Promise.reject()))
+      .then((blob) => setLogoUrl(URL.createObjectURL(blob)))
+      .catch(() => setLogoUrl(null));
   }, []);
 
   useEffect(() => {
@@ -71,11 +80,12 @@ export default function Settings() {
         method: 'GET',
         headers: { Authorization: token ? `Bearer ${token}` : '' },
       });
+      const blob = await res.blob();
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
+        let d = {};
+        try { d = JSON.parse(await blob.text()); } catch (_) {}
         throw new Error(d.error || res.statusText || 'Backup failed');
       }
-      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -109,6 +119,33 @@ export default function Settings() {
     }
   };
 
+  const uploadLogo = async () => {
+    if (!logoFile) return;
+    setErr('');
+    setLogoUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('logo', logoFile);
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/settings/logo', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText || 'Upload failed');
+      const res2 = await fetch('/api/settings/logo', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (res2.ok) setLogoUrl(URL.createObjectURL(await res2.blob()));
+      setLogoFile(null);
+      const el = document.getElementById('settings-logo-file');
+      if (el) el.value = '';
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
   if (loading) return <div className="flex items-center justify-center py-20"><div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" /></div>;
 
   return (
@@ -137,6 +174,43 @@ export default function Settings() {
             <div><label className="label">Next invoice #</label><input type="number" min="1" className="input" value={settings.invoice_counter ?? '1'} onChange={(e) => update('invoice_counter', e.target.value)} /></div>
             <div><label className="label">Voucher prefix</label><input className="input" value={settings.voucher_prefix || 'VCH'} onChange={(e) => update('voucher_prefix', e.target.value)} /></div>
             <div><label className="label">Next voucher #</label><input type="number" min="1" className="input" value={settings.voucher_counter ?? '1'} onChange={(e) => update('voucher_counter', e.target.value)} /></div>
+          </div>
+        </Section>
+
+        <Section title="Company details (for exports &amp; print)">
+          <p className="text-sm text-slate-600 mb-4">Shown in headers of all PDF, Excel, and print exports.</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2"><label className="label">Company name</label><input className="input" value={settings.company_name || ''} onChange={(e) => update('company_name', e.target.value)} placeholder="Your business name" /></div>
+            <div><label className="label">Phone</label><input className="input" value={settings.company_phone || ''} onChange={(e) => update('company_phone', e.target.value)} placeholder="+92 300 1234567" /></div>
+            <div><label className="label">Email</label><input type="email" className="input" value={settings.company_email || ''} onChange={(e) => update('company_email', e.target.value)} placeholder="info@company.com" /></div>
+            <div className="sm:col-span-2"><label className="label">Address</label><input className="input" value={settings.company_address || ''} onChange={(e) => update('company_address', e.target.value)} placeholder="Street, city, country" /></div>
+            <div><label className="label">Website</label><input type="url" className="input" value={settings.company_website || ''} onChange={(e) => update('company_website', e.target.value)} placeholder="https://www.example.com" /></div>
+            <div><label className="label">Tax number</label><input className="input" value={settings.company_tax_number || ''} onChange={(e) => update('company_tax_number', e.target.value)} placeholder="NTN / VAT" /></div>
+          </div>
+          <div className="mt-6 pt-4 border-t border-slate-200">
+            <label className="label">Logo (max 15MB, PNG/JPG/WebP)</label>
+            <div className="flex flex-wrap items-center gap-4 mt-2">
+              {logoUrl && (
+                <div className="flex items-center gap-3">
+                  <img src={logoUrl} alt="Company logo" className="h-16 object-contain border border-slate-200 rounded-lg bg-white" />
+                  <span className="text-sm text-slate-500">Current logo</span>
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="settings-logo-file" className="btn-secondary flex items-center gap-2 cursor-pointer inline-flex">
+                  <Upload className="w-4 h-4" /> {logoUrl ? 'Replace' : 'Upload'} logo
+                </label>
+                <input id="settings-logo-file" type="file" accept=".png,.jpg,.jpeg,.webp" className="hidden" onChange={(e) => setLogoFile(e.target.files?.[0] || null)} />
+                {logoFile && (
+                  <>
+                    <span className="text-sm text-slate-600">{logoFile.name}</span>
+                    <button type="button" onClick={uploadLogo} disabled={logoUploading} className="btn-primary text-sm">
+                      {logoUploading ? 'Uploading…' : 'Save logo'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </Section>
 

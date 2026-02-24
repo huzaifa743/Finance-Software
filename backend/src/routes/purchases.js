@@ -2,11 +2,14 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
+import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
 import { fileURLToPath } from 'url';
 import db from '../db/database.js';
 import { authenticate, requireRole, requireNotAuditor } from '../middleware/auth.js';
 import { logActivity } from '../middleware/activityLog.js';
 import { getNextVoucherNumber, appendVoucherNote } from '../utils/autoNumbering.js';
+import { getCompanySettings, addPdfCompanyHeader, addExcelCompanyHeader } from '../utils/companyBranding.js';
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -84,10 +87,97 @@ router.get('/suppliers/:id/ledger', authenticate, (req, res) => {
     SELECT * FROM payments WHERE reference_type = 'supplier' AND reference_id = ? ORDER BY payment_date DESC
   `).all(id);
   const totalPurchases = purchases.reduce((a, r) => a + (parseFloat(r.total_amount) || 0), 0);
-  const totalPaid = purchases.reduce((a, r) => a + (parseFloat(r.paid_amount) || 0), 0) +
-    payments.reduce((a, r) => a + (parseFloat(r.amount) || 0), 0);
-  const balance = totalPurchases - totalPaid;
+  const totalBalance = purchases.reduce((a, r) => a + (parseFloat(r.balance) || 0), 0);
+  const totalPaid = totalPurchases - totalBalance;
+  const balance = totalBalance;
   res.json({ purchases, payments, totalPurchases, totalPaid, balance });
+});
+
+router.get('/suppliers/:id/ledger/export', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { type } = req.query;
+  if (!type) return res.status(400).json({ error: 'type is required (pdf or xlsx)' });
+
+  const supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(id);
+  if (!supplier) return res.status(404).json({ error: 'Supplier not found.' });
+
+  const purchases = db.prepare(`
+    SELECT p.*, b.name as branch_name FROM purchases p
+    LEFT JOIN branches b ON p.branch_id = b.id
+    WHERE p.supplier_id = ? ORDER BY p.purchase_date DESC
+  `).all(id);
+  const payments = db.prepare(`
+    SELECT * FROM payments WHERE reference_type = 'supplier' AND reference_id = ? ORDER BY payment_date DESC
+  `).all(id);
+  const totalPurchases = purchases.reduce((a, r) => a + (parseFloat(r.total_amount) || 0), 0);
+  const totalBalance = purchases.reduce((a, r) => a + (parseFloat(r.balance) || 0), 0);
+  const totalPaid = totalPurchases - totalBalance;
+  const balance = totalBalance;
+
+  const company = getCompanySettings(db);
+
+  if (type === 'xlsx') {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = company.companyName || 'Finance Software';
+    const wsPurch = wb.addWorksheet('Purchases');
+    addExcelCompanyHeader(wsPurch, company, `Supplier Ledger — ${supplier.name}`, wb);
+    wsPurch.addRow(['Date', 'Branch', 'Invoice', 'Total', 'Paid', 'Balance']);
+    wsPurch.lastRow.font = { bold: true };
+    purchases.forEach((p) => wsPurch.addRow([p.purchase_date, p.branch_name || '–', p.invoice_no || '–', p.total_amount, p.paid_amount, p.balance]));
+
+    const wsPay = wb.addWorksheet('Payments');
+    addExcelCompanyHeader(wsPay, company, `Payments — ${supplier.name}`, wb);
+    wsPay.addRow(['Payment Date', 'Mode', 'Amount', 'Remarks']);
+    wsPay.lastRow.font = { bold: true };
+    payments.forEach((p) => wsPay.addRow([p.payment_date, p.mode, p.amount, p.remarks || '–']));
+
+    const summary = wb.addWorksheet('Summary');
+    addExcelCompanyHeader(summary, company, `Supplier Ledger — ${supplier.name}`, wb);
+    summary.addRow(['Supplier', supplier.name]);
+    summary.addRow(['Total purchases', totalPurchases]);
+    summary.addRow(['Total paid', totalPaid]);
+    summary.addRow(['Balance', balance]);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    const fileName = `supplier-ledger-${supplier.name || id}.xlsx`.replace(/\s+/g, '-');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    await wb.xlsx.write(res);
+    return res.end();
+  }
+
+  if (type === 'pdf') {
+    const doc = new PDFDocument({ size: 'A4', margin: 30 });
+    const fileName = `supplier-ledger-${supplier.name || id}.pdf`.replace(/\s+/g, '-');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    doc.pipe(res);
+
+    addPdfCompanyHeader(doc, company, { title: 'Supplier Ledger', subtitle: supplier.name });
+    doc.fontSize(10).font('Helvetica').text(`Total purchases: ${totalPurchases}  |  Total paid: ${totalPaid}  |  Balance: ${balance}`);
+    doc.moveDown(0.75);
+
+    doc.fontSize(11).font('Helvetica-Bold').text('Purchases', { underline: true });
+    doc.moveDown(0.25);
+    purchases.forEach((p) => {
+      doc.fontSize(9).font('Helvetica').text(
+        `${p.purchase_date} | ${p.branch_name || '–'} | Inv: ${p.invoice_no || '–'} | Total: ${p.total_amount} | Paid: ${p.paid_amount} | Bal: ${p.balance}`
+      );
+    });
+
+    doc.addPage();
+    doc.fontSize(11).font('Helvetica-Bold').text('Payments', { underline: true });
+    doc.moveDown(0.25);
+    payments.forEach((p) => {
+      doc.fontSize(9).font('Helvetica').text(
+        `${p.payment_date} | ${p.mode} | Amount: ${p.amount} | ${p.remarks || ''}`
+      );
+    });
+
+    doc.end();
+    return;
+  }
+
+  return res.status(400).json({ error: 'Unsupported export type. Use pdf or xlsx.' });
 });
 
 router.get('/due-reminders', authenticate, (req, res) => {
@@ -162,15 +252,19 @@ router.get('/reports/supplier-wise', authenticate, (req, res) => {
   const { from, to } = req.query;
   const rows = from && to
     ? db.prepare(`
-        SELECT s.id, s.name, COALESCE(SUM(p.total_amount), 0) as total_purchases, COALESCE(SUM(p.paid_amount), 0) as total_paid,
-               COALESCE(SUM(p.total_amount), 0) - COALESCE(SUM(p.paid_amount), 0) as balance
+        SELECT s.id, s.name,
+               COALESCE(SUM(p.total_amount), 0) as total_purchases,
+               COALESCE(SUM(p.total_amount), 0) - COALESCE(SUM(p.balance), 0) as total_paid,
+               COALESCE(SUM(p.balance), 0) as balance
         FROM suppliers s
         LEFT JOIN purchases p ON p.supplier_id = s.id AND p.purchase_date >= ? AND p.purchase_date <= ?
         GROUP BY s.id, s.name ORDER BY total_purchases DESC
       `).all(from, to)
     : db.prepare(`
-        SELECT s.id, s.name, COALESCE(SUM(p.total_amount), 0) as total_purchases, COALESCE(SUM(p.paid_amount), 0) as total_paid,
-               COALESCE(SUM(p.total_amount), 0) - COALESCE(SUM(p.paid_amount), 0) as balance
+        SELECT s.id, s.name,
+               COALESCE(SUM(p.total_amount), 0) as total_purchases,
+               COALESCE(SUM(p.total_amount), 0) - COALESCE(SUM(p.balance), 0) as total_paid,
+               COALESCE(SUM(p.balance), 0) as balance
         FROM suppliers s
         LEFT JOIN purchases p ON p.supplier_id = s.id
         GROUP BY s.id, s.name ORDER BY total_purchases DESC

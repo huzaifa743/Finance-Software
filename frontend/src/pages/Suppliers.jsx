@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
-import { Plus, Pencil, BookOpen, Search, Trash2 } from 'lucide-react';
+import { Plus, Pencil, BookOpen, Search, Trash2, FileDown, Printer, DollarSign } from 'lucide-react';
+import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf } from '../utils/printHeader';
 
 export default function Suppliers() {
   const [list, setList] = useState([]);
@@ -13,10 +14,38 @@ export default function Suppliers() {
   const [ledger, setLedger] = useState(null);
   const [supplierQuery, setSupplierQuery] = useState('');
   const [ledgerQuery, setLedgerQuery] = useState('');
+  const [payModalSupplier, setPayModalSupplier] = useState(null);
+  const [payForm, setPayForm] = useState({ amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'cash', remarks: '' });
+  const [banks, setBanks] = useState([]);
+  const [supplierBalances, setSupplierBalances] = useState({});
+  const [totalPendingSuppliers, setTotalPendingSuppliers] = useState(0);
 
   const load = () => api.get('/purchases/suppliers').then(setList).catch((e) => setErr(e.message));
 
-  useEffect(() => { load(); }, []);
+  const loadSupplierBalances = () =>
+    api
+      .get('/purchases/reports/supplier-wise')
+      .then((rows) => {
+        const map = {};
+        let total = 0;
+        (rows || []).forEach((r) => {
+          const bal = Number(r.balance) || 0;
+          map[r.id] = bal;
+          if (bal > 0) total += bal;
+        });
+        setSupplierBalances(map);
+        setTotalPendingSuppliers(total);
+      })
+      .catch(() => {
+        setSupplierBalances({});
+        setTotalPendingSuppliers(0);
+      });
+
+  useEffect(() => {
+    load();
+    loadSupplierBalances();
+    api.get('/banks').then(setBanks).catch(() => {});
+  }, []);
   useEffect(() => { setLoading(false); }, [list]);
 
   useEffect(() => {
@@ -102,6 +131,228 @@ export default function Suppliers() {
       })
     : (ledger?.payments || []);
 
+  const downloadLedger = async (format) => {
+    if (!ledgerSupplier) return;
+    setErr('');
+    try {
+      if (format === 'pdf' && ledger) {
+        const company = await getCompanyForPrint();
+        const headerHtml = buildPrintHeaderHtml(company, 'Supplier Ledger', ledgerSupplier.name, { forPdf: true });
+        const rowsPurch = filteredPurchases;
+        const rowsPay = filteredPayments;
+        const fullHtml = `
+      <html>
+        <head>
+          <title>Supplier Ledger - ${ledgerSupplier.name}</title>
+          <style>
+            body { font-family: system-ui, sans-serif; padding: 16px; }
+            h1, h2 { margin: 0 0 8px; }
+            table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+            th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
+            th { background: #f3f4f6; }
+          </style>
+        </head>
+        <body>
+          ${headerHtml}
+          <p>Total purchases: ${fmt(ledger.totalPurchases)} | Total paid: ${fmt(ledger.totalPaid)} | Balance: ${fmt(ledger.balance)}</p>
+          <h2>Purchases</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Branch</th>
+                <th>Invoice</th>
+                <th>Total</th>
+                <th>Paid</th>
+                <th>Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsPurch.map(p => `
+                <tr>
+                  <td>${p.purchase_date}</td>
+                  <td>${p.branch_name || '–'}</td>
+                  <td>${p.invoice_no || '–'}</td>
+                  <td style="text-align:right;">${fmt(p.total_amount)}</td>
+                  <td style="text-align:right;">${fmt(p.paid_amount)}</td>
+                  <td style="text-align:right;">${fmt(p.balance)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <h2>Payments</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Payment Date</th>
+                <th>Mode</th>
+                <th>Amount</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsPay.map(p => `
+                <tr>
+                  <td>${p.payment_date}</td>
+                  <td>${p.mode}</td>
+                  <td style="text-align:right;">${fmt(p.amount)}</td>
+                  <td>${p.remarks || '–'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+        await exportPrintAsPdf(fullHtml, `supplier-ledger-${ledgerSupplier.name || ledgerSupplier.id}.pdf`);
+        return;
+      }
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/purchases/suppliers/${ledgerSupplier.id}/ledger/export?type=${format}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || res.statusText || 'Export failed');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ext = format === 'xlsx' ? 'xlsx' : 'pdf';
+      a.href = url;
+      a.download = `supplier-ledger-${ledgerSupplier.name || ledgerSupplier.id}.${ext}`.replace(/\s+/g, '-');
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
+  const printLedger = async () => {
+    if (!ledgerSupplier || !ledger) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    try {
+      const company = await getCompanyForPrint();
+      const headerHtml = buildPrintHeaderHtml(company, 'Supplier Ledger', ledgerSupplier.name);
+      const rowsPurch = filteredPurchases;
+      const rowsPay = filteredPayments;
+      const html = `
+      <html>
+        <head>
+          <title>Supplier Ledger - ${ledgerSupplier.name}</title>
+          <style>
+            body { font-family: system-ui, sans-serif; padding: 16px; }
+            h1, h2 { margin: 0 0 8px; }
+            table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+            th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
+            th { background: #f3f4f6; }
+          </style>
+        </head>
+        <body>
+          ${headerHtml}
+          <p>Total purchases: ${fmt(ledger.totalPurchases)} | Total paid: ${fmt(ledger.totalPaid)} | Balance: ${fmt(ledger.balance)}</p>
+          <h2>Purchases</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Branch</th>
+                <th>Invoice</th>
+                <th>Total</th>
+                <th>Paid</th>
+                <th>Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsPurch.map(p => `
+                <tr>
+                  <td>${p.purchase_date}</td>
+                  <td>${p.branch_name || '–'}</td>
+                  <td>${p.invoice_no || '–'}</td>
+                  <td style="text-align:right;">${fmt(p.total_amount)}</td>
+                  <td style="text-align:right;">${fmt(p.paid_amount)}</td>
+                  <td style="text-align:right;">${fmt(p.balance)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <h2>Payments</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Payment Date</th>
+                <th>Mode</th>
+                <th>Amount</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsPay.map(p => `
+                <tr>
+                  <td>${p.payment_date}</td>
+                  <td>${p.mode}</td>
+                  <td style="text-align:right;">${fmt(p.amount)}</td>
+                  <td>${p.remarks || '–'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    } catch (e) {
+      win.close();
+    }
+  };
+
+  const openPay = (s) => {
+    setPayModalSupplier(s);
+    setPayForm({
+      amount: '',
+      payment_date: new Date().toISOString().slice(0, 10),
+      payment_method: 'cash',
+      remarks: '',
+    });
+  };
+
+  const savePayment = async (e) => {
+    e.preventDefault();
+    if (!payModalSupplier) return;
+    setErr('');
+    const amt = parseFloat(payForm.amount);
+    if (!amt || amt <= 0) {
+      setErr('Enter a valid payment amount.');
+      return;
+    }
+    try {
+      await api.post('/payments', {
+        category: 'supplier',
+        reference_id: payModalSupplier.id,
+        amount: amt,
+        payment_date: payForm.payment_date,
+        payment_method: payForm.payment_method === 'cash' ? 'cash' : payForm.payment_method,
+        remarks: payForm.remarks || undefined,
+      });
+      setPayModalSupplier(null);
+      setPayForm({ amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'cash', remarks: '' });
+      // Reload ledger and list
+      load();
+      loadSupplierBalances();
+      if (ledgerSupplier?.id === payModalSupplier.id) {
+        api.get(`/purchases/suppliers/${payModalSupplier.id}/ledger`)
+          .then(setLedger)
+          .catch(() => {});
+      }
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -114,18 +365,24 @@ export default function Suppliers() {
 
       {err && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">{err}</div>}
 
-      <div className="card p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-            <Search className="w-4 h-4 text-slate-500" />
-            <span>Search</span>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="card p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+              <Search className="w-4 h-4 text-slate-500" />
+              <span>Search</span>
+            </div>
+            <input
+              className="input w-full md:w-[420px]"
+              placeholder="Search suppliers by name, contact, address"
+              value={supplierQuery}
+              onChange={(e) => setSupplierQuery(e.target.value)}
+            />
           </div>
-          <input
-            className="input w-full md:w-[420px]"
-            placeholder="Search suppliers by name, contact, address"
-            value={supplierQuery}
-            onChange={(e) => setSupplierQuery(e.target.value)}
-          />
+        </div>
+        <div className="card p-4">
+          <p className="text-sm font-medium text-slate-600">Total pending balance (all suppliers)</p>
+          <p className="mt-1 text-2xl font-bold text-rose-700 font-mono">{fmt(totalPendingSuppliers)}</p>
         </div>
       </div>
 
@@ -138,6 +395,7 @@ export default function Suppliers() {
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Address</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Phone</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-700">VAT Number</th>
+              <th className="text-right px-4 py-3 font-medium text-slate-700">Pending balance</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
               </tr>
             </thead>
@@ -148,8 +406,14 @@ export default function Suppliers() {
                   <td className="px-4 py-3">{s.address || '–'}</td>
                   <td className="px-4 py-3">{s.phone || '–'}</td>
                   <td className="px-4 py-3">{s.vat_number || '–'}</td>
+              <td className="px-4 py-3 text-right font-mono">
+                {fmt(supplierBalances[s.id] ?? 0)}
+              </td>
                   <td className="px-4 py-3 text-right">
                     <button onClick={() => setLedgerSupplier(s)} className="btn-secondary text-xs mr-2"><BookOpen className="w-4 h-4" /> Ledger</button>
+                    <button onClick={() => openPay(s)} className="btn-secondary text-xs mr-2 inline-flex items-center gap-1">
+                      <DollarSign className="w-4 h-4" /> Pay
+                    </button>
                     <button onClick={() => openEdit(s)} className="p-1.5 text-slate-500 hover:text-primary-600"><Pencil className="w-4 h-4" /></button>
                     <button onClick={() => remove(s)} className="p-1.5 text-slate-500 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
                   </td>
@@ -162,73 +426,110 @@ export default function Suppliers() {
       </div>
 
       {ledgerSupplier && ledger && (
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-slate-900">Ledger — {ledgerSupplier.name}</h3>
-            <button onClick={() => { setLedgerSupplier(null); setLedger(null); }} className="btn-secondary text-xs">Close</button>
-          </div>
-          <p className="text-sm text-slate-600 mt-2">Total purchases: {fmt(ledger.totalPurchases)} • Total paid: {fmt(ledger.totalPaid)} • Balance: {fmt(ledger.balance)}</p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-              <Search className="w-4 h-4 text-slate-500" />
-              <span>Search</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="card w-full max-w-5xl p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-slate-900">Ledger — {ledgerSupplier.name}</h3>
+                <p className="text-sm text-slate-600 mt-1">
+                  Total purchases: {fmt(ledger.totalPurchases)} • Total paid: {fmt(ledger.totalPaid)} • Balance: {fmt(ledger.balance)}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadLedger('pdf')}
+                  className="btn-secondary text-xs inline-flex items-center gap-1"
+                >
+                  <FileDown className="w-3 h-3" /> PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => downloadLedger('xlsx')}
+                  className="btn-secondary text-xs inline-flex items-center gap-1"
+                >
+                  <FileDown className="w-3 h-3" /> Excel
+                </button>
+                <button
+                  type="button"
+                  onClick={printLedger}
+                  className="btn-secondary text-xs inline-flex items-center gap-1"
+                >
+                  <Printer className="w-3 h-3" /> Print
+                </button>
+                <button
+                  onClick={() => { setLedgerSupplier(null); setLedger(null); }}
+                  className="btn-secondary text-xs"
+                >
+                  Close
+                </button>
+              </div>
             </div>
-            <input
-              className="input w-full md:w-[520px]"
-              placeholder="Search ledger by date, invoice, amount, remarks"
-              value={ledgerQuery}
-              onChange={(e) => setLedgerQuery(e.target.value)}
-            />
-          </div>
-          <div className="overflow-x-auto mt-4">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="text-left px-3 py-2">Date</th>
-                  <th className="text-left px-3 py-2">Branch</th>
-                  <th className="text-left px-3 py-2">Invoice</th>
-                  <th className="text-right px-3 py-2">Total</th>
-                  <th className="text-right px-3 py-2">Paid</th>
-                  <th className="text-right px-3 py-2">Balance</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredPurchases.map((p) => (
-                  <tr key={p.id}>
-                    <td className="px-3 py-2">{p.purchase_date}</td>
-                    <td className="px-3 py-2">{p.branch_name || '–'}</td>
-                    <td className="px-3 py-2">{p.invoice_no || '–'}</td>
-                    <td className="px-3 py-2 text-right font-mono">{fmt(p.total_amount)}</td>
-                    <td className="px-3 py-2 text-right font-mono">{fmt(p.paid_amount)}</td>
-                    <td className="px-3 py-2 text-right font-mono">{fmt(p.balance)}</td>
+
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                <Search className="w-4 h-4 text-slate-500" />
+                <span>Search</span>
+              </div>
+              <input
+                className="input w-full md:w-[520px]"
+                placeholder="Search ledger by date, invoice, amount, remarks"
+                value={ledgerQuery}
+                onChange={(e) => setLedgerQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="overflow-x-auto mt-4">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="text-left px-3 py-2">Date</th>
+                    <th className="text-left px-3 py-2">Branch</th>
+                    <th className="text-left px-3 py-2">Invoice</th>
+                    <th className="text-right px-3 py-2">Total</th>
+                    <th className="text-right px-3 py-2">Paid</th>
+                    <th className="text-right px-3 py-2">Balance</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {!filteredPurchases.length && <p className="p-3 text-sm text-slate-500">No purchases found.</p>}
-          </div>
-          <div className="overflow-x-auto mt-4">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="text-left px-3 py-2">Payment Date</th>
-                  <th className="text-left px-3 py-2">Mode</th>
-                  <th className="text-right px-3 py-2">Amount</th>
-                  <th className="text-left px-3 py-2">Remarks</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredPayments.map((p) => (
-                  <tr key={p.id}>
-                    <td className="px-3 py-2">{p.payment_date}</td>
-                    <td className="px-3 py-2">{p.mode}</td>
-                    <td className="px-3 py-2 text-right font-mono">{fmt(p.amount)}</td>
-                    <td className="px-3 py-2">{p.remarks || '–'}</td>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {filteredPurchases.map((p) => (
+                    <tr key={p.id}>
+                      <td className="px-3 py-2">{p.purchase_date}</td>
+                      <td className="px-3 py-2">{p.branch_name || '–'}</td>
+                      <td className="px-3 py-2">{p.invoice_no || '–'}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmt(p.total_amount)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmt(p.paid_amount)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmt(p.balance)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!filteredPurchases.length && <p className="p-3 text-sm text-slate-500">No purchases found.</p>}
+            </div>
+
+            <div className="overflow-x-auto mt-4">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="text-left px-3 py-2">Payment Date</th>
+                    <th className="text-left px-3 py-2">Mode</th>
+                    <th className="text-right px-3 py-2">Amount</th>
+                    <th className="text-left px-3 py-2">Remarks</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {!filteredPayments.length && <p className="p-3 text-sm text-slate-500">No payments found.</p>}
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {filteredPayments.map((p) => (
+                    <tr key={p.id}>
+                      <td className="px-3 py-2">{p.payment_date}</td>
+                      <td className="px-3 py-2">{p.mode}</td>
+                      <td className="px-3 py-2 text-right font-mono">{fmt(p.amount)}</td>
+                      <td className="px-3 py-2">{p.remarks || '–'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!filteredPayments.length && <p className="p-3 text-sm text-slate-500">No payments found.</p>}
+            </div>
           </div>
         </div>
       )}
@@ -244,6 +545,65 @@ export default function Suppliers() {
               <div><label className="label">VAT Number</label><input className="input" value={form.vat_number} onChange={(e) => setForm({ ...form, vat_number: e.target.value })} /></div>
               <div><label className="label">Contact (other)</label><input className="input" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} placeholder="Email or contact person" /></div>
               <div className="flex gap-3"><button type="submit" className="btn-primary">{modal === 'add' ? 'Add' : 'Update'}</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {payModalSupplier && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="card w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Pay Supplier — {payModalSupplier.name}</h2>
+            <form onSubmit={savePayment} className="space-y-4">
+              <div>
+                <label className="label">Amount *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="input w-full"
+                  value={payForm.amount}
+                  onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">Payment date *</label>
+                <input
+                  type="date"
+                  className="input w-full"
+                  value={payForm.payment_date}
+                  onChange={(e) => setPayForm({ ...payForm, payment_date: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">Payment method</label>
+                <select
+                  className="input w-full"
+                  value={payForm.payment_method}
+                  onChange={(e) => setPayForm({ ...payForm, payment_method: e.target.value })}
+                >
+                  <option value="cash">Cash</option>
+                  {banks.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}{b.account_number ? ` (${b.account_number})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label">Remarks</label>
+                <input
+                  className="input w-full"
+                  value={payForm.remarks}
+                  onChange={(e) => setPayForm({ ...payForm, remarks: e.target.value })}
+                  placeholder="Optional"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="submit" className="btn-primary">Save Payment</button>
+                <button type="button" onClick={() => setPayModalSupplier(null)} className="btn-secondary">Cancel</button>
+              </div>
             </form>
           </div>
         </div>

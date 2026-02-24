@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS sales (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   branch_id INTEGER REFERENCES branches(id),
   customer_id INTEGER REFERENCES customers(id),
+  bank_id INTEGER REFERENCES banks(id),
   sale_date DATE NOT NULL,
   type TEXT DEFAULT 'cash',
   cash_amount REAL DEFAULT 0,
@@ -143,6 +144,13 @@ CREATE TABLE IF NOT EXISTS sale_attachments (
   filename TEXT,
   path TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sale_bank_splits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sale_id INTEGER REFERENCES sales(id),
+  bank_id INTEGER REFERENCES banks(id),
+  amount REAL NOT NULL
 );
 
 -- Receivables (Credit sales / Udhaar)

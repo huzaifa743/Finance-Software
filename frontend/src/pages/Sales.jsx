@@ -9,13 +9,15 @@ export default function Sales() {
   const canMutate = user?.role_name !== 'Auditor';
   const [list, setList] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [banks, setBanks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [modal, setModal] = useState(null);
   const [filters, setFilters] = useState({ branch_id: '', from: '', to: '', type: '' });
   const [form, setForm] = useState({
     branch_id: '', customer_id: '', sale_date: new Date().toISOString().slice(0, 10), type: 'cash',
-    cash_amount: 0, bank_amount: 0, credit_amount: 0, discount: 0, returns_amount: 0, remarks: '', due_date: '',
+    cash_amount: 0, credit_amount: 0, discount: 0, returns_amount: 0, remarks: '', due_date: '',
+    bank_splits: [{ bank_id: '', amount: 0 }],
   });
   const [customers, setCustomers] = useState([]);
   const [attachmentsModal, setAttachmentsModal] = useState(null);
@@ -39,6 +41,7 @@ export default function Sales() {
   useEffect(() => {
     api.get('/branches?active=1').then(setBranches).catch(() => {});
     api.get('/receivables/customers').then(setCustomers).catch(() => {});
+    api.get('/banks').then(setBanks).catch(() => {});
   }, []);
 
   useEffect(() => { setLoading(false); }, [list]);
@@ -46,31 +49,49 @@ export default function Sales() {
   const openAdd = () => {
     setForm({
       branch_id: branches[0]?.id || '', customer_id: '', sale_date: new Date().toISOString().slice(0, 10), type: 'cash',
-      cash_amount: 0, bank_amount: 0, credit_amount: 0, discount: 0, returns_amount: 0, remarks: '', due_date: '',
+      cash_amount: 0, credit_amount: 0, discount: 0, returns_amount: 0, remarks: '', due_date: '',
+      bank_splits: [{ bank_id: '', amount: 0 }],
     });
     setModal('add');
   };
 
-  const openEdit = (s) => {
-    setForm({
-      id: s.id,
-      branch_id: s.branch_id,
-      customer_id: s.customer_id || '',
-      sale_date: s.sale_date,
-      type: s.type || 'cash',
-      cash_amount: s.cash_amount ?? 0,
-      bank_amount: s.bank_amount ?? 0,
-      credit_amount: s.credit_amount ?? 0,
-      discount: s.discount ?? 0,
-      returns_amount: s.returns_amount ?? 0,
-      remarks: s.remarks || '',
-      due_date: s.due_date || '',
-    });
-    setModal('edit');
+  const openEdit = async (s) => {
+    try {
+      const full = await api.get(`/sales/${s.id}`);
+      const splits = Array.isArray(full.bank_splits) && full.bank_splits.length
+        ? full.bank_splits.map((bs) => ({
+            bank_id: bs.bank_id ? String(bs.bank_id) : '',
+            amount: bs.amount ?? 0,
+          }))
+        : [{
+            bank_id: full.bank_id ? String(full.bank_id) : '',
+            amount: full.bank_amount ?? 0,
+          }];
+      setForm({
+        id: full.id,
+        branch_id: full.branch_id,
+        customer_id: full.customer_id || '',
+        sale_date: full.sale_date,
+        type: full.type || 'cash',
+        cash_amount: full.cash_amount ?? 0,
+        credit_amount: full.credit_amount ?? 0,
+        discount: full.discount ?? 0,
+        returns_amount: full.returns_amount ?? 0,
+        remarks: full.remarks || '',
+        due_date: full.due_date || '',
+        bank_splits: splits.length ? splits : [{ bank_id: '', amount: 0 }],
+      });
+      setModal('edit');
+    } catch (e) {
+      setErr(e.message);
+    }
   };
 
+  const bankTotal = () =>
+    (form.bank_splits || []).reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+
   const net = () => Math.max(0,
-    (Number(form.cash_amount) || 0) + (Number(form.bank_amount) || 0) + (Number(form.credit_amount) || 0) -
+    (Number(form.cash_amount) || 0) + bankTotal() + (Number(form.credit_amount) || 0) -
     (Number(form.discount) || 0) - (Number(form.returns_amount) || 0)
   );
 
@@ -78,21 +99,33 @@ export default function Sales() {
     e.preventDefault();
     setErr('');
     const creditAmt = Number(form.credit_amount) || 0;
+    const splits = (form.bank_splits || []).filter((l) => (Number(l.amount) || 0) > 0);
+    const bankAmt = splits.reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
     if (creditAmt > 0 && !form.customer_id) {
       setErr('Please select a customer for credit sales (amount will be added to Receivables).');
+      return;
+    }
+    if (bankAmt > 0 && splits.some((l) => !l.bank_id)) {
+      setErr('Please select a bank account for each bank amount.');
       return;
     }
     try {
       if (modal === 'add') {
         await api.post('/sales', {
           ...form,
+          bank_splits: splits,
+          bank_amount: bankAmt,
           branch_id: form.branch_id || null,
           customer_id: form.customer_id || null,
           due_date: form.due_date || null,
         });
       } else {
         const { id, ...patch } = form;
-        await api.patch(`/sales/${id}`, patch);
+        await api.patch(`/sales/${id}`, {
+          ...patch,
+          bank_splits: splits,
+          bank_amount: bankAmt,
+        });
       }
       setModal(null);
       load();
@@ -166,6 +199,17 @@ export default function Sales() {
 
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+  const deleteSale = async (s) => {
+    if (!window.confirm('Delete this sale? This cannot be undone.')) return;
+    setErr('');
+    try {
+      await api.delete(`/sales/${s.id}`);
+      load();
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -206,7 +250,8 @@ export default function Sales() {
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Customer</th>
                 <th className="text-left px-4 py-3 font-medium text-slate-700">Type</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-700">Cash</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Bank</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">Bank (accounts)</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">Total bank sales</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-700">Credit</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-700">Discount</th>
                 <th className="text-right px-4 py-3 font-medium text-slate-700">Returns</th>
@@ -223,16 +268,73 @@ export default function Sales() {
                   <td className="px-4 py-3">{s.customer_name || '–'}</td>
                   <td className="px-4 py-3 capitalize">{s.type || 'cash'}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmt(s.cash_amount)}</td>
-                  <td className="px-4 py-3 text-right font-mono">{fmt(s.bank_amount)}</td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {s.bank_split_label ? (
+                      <div className="space-y-0.5 text-right">
+                        {String(s.bank_split_label)
+                          .split(',')
+                          .map((part) => part.trim())
+                          .filter(Boolean)
+                          .map((part, idx) => {
+                            const [name, rawAmt] = part.split(':');
+                            const amtNum = Number(rawAmt);
+                            const displayAmt = Number.isNaN(amtNum) ? rawAmt : fmt(amtNum);
+                            return (
+                              <div key={idx}>
+                                {`${name} = ${displayAmt}`}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    ) : (
+                      fmt(s.bank_amount)
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {fmt(s.bank_amount)}
+                  </td>
                   <td className="px-4 py-3 text-right font-mono">{fmt(s.credit_amount)}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmt(s.discount)}</td>
                   <td className="px-4 py-3 text-right font-mono">{fmt(s.returns_amount)}</td>
                   <td className="px-4 py-3 text-right font-mono font-medium">{fmt(s.net_sales)}</td>
                   <td className="px-4 py-3">{s.is_locked ? <Lock className="w-4 h-4 text-amber-500" /> : <Unlock className="w-4 h-4 text-slate-400" />}</td>
                   <td className="px-4 py-3 text-right">
-                    {canLock && <button onClick={() => toggleLock(s)} className="p-1.5 text-slate-500 hover:text-amber-600" title={s.is_locked ? 'Unlock' : 'Lock'}>{s.is_locked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}</button>}
-                    <button onClick={() => openAttachments(s)} className="p-1.5 text-slate-500 hover:text-primary-600" title="Attachments"><Paperclip className="w-4 h-4" /></button>
-                    {canMutate && <button onClick={() => openEdit(s)} disabled={!!s.is_locked} className="p-1.5 text-slate-500 hover:text-primary-600 disabled:opacity-50"><Pencil className="w-4 h-4" /></button>}
+                    {canLock && (
+                      <button
+                        onClick={() => toggleLock(s)}
+                        className="p-1.5 text-slate-500 hover:text-amber-600"
+                        title={s.is_locked ? 'Unlock' : 'Lock'}
+                      >
+                        {s.is_locked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => openAttachments(s)}
+                      className="p-1.5 text-slate-500 hover:text-primary-600"
+                      title="Attachments"
+                    >
+                      <Paperclip className="w-4 h-4" />
+                    </button>
+                    {canMutate && (
+                      <>
+                        <button
+                          onClick={() => openEdit(s)}
+                          disabled={!!s.is_locked}
+                          className="p-1.5 text-slate-500 hover:text-primary-600 disabled:opacity-50"
+                          title="Edit"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteSale(s)}
+                          disabled={!!s.is_locked}
+                          className="p-1.5 text-slate-500 hover:text-red-600 disabled:opacity-50"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -285,8 +387,78 @@ export default function Sales() {
               )}
               <div className="grid grid-cols-3 gap-4">
                 <div><label className="label">Cash</label><input type="number" step="0.01" className="input" value={form.cash_amount} onChange={(e) => setForm({ ...form, cash_amount: e.target.value })} /></div>
-                <div><label className="label">Bank</label><input type="number" step="0.01" className="input" value={form.bank_amount} onChange={(e) => setForm({ ...form, bank_amount: e.target.value })} /></div>
                 <div><label className="label">Credit (→ Receivables)</label><input type="number" step="0.01" className="input" value={form.credit_amount} onChange={(e) => setForm({ ...form, credit_amount: e.target.value })} /></div>
+                <div />
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="label">Bank allocations</label>
+                  <button
+                    type="button"
+                    className="text-xs text-primary-600 hover:underline"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        bank_splits: [...(form.bank_splits || []), { bank_id: '', amount: 0 }],
+                      })
+                    }
+                  >
+                    + Add bank
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {(form.bank_splits || []).map((line, idx) => (
+                    <div key={idx} className="grid grid-cols-3 gap-2 items-end">
+                      <div>
+                        <label className="label">Bank</label>
+                        <select
+                          className="input"
+                          value={line.bank_id}
+                          onChange={(e) => {
+                            const next = [...(form.bank_splits || [])];
+                            next[idx] = { ...next[idx], bank_id: e.target.value };
+                            setForm({ ...form, bank_splits: next });
+                          }}
+                        >
+                          <option value="">Select bank</option>
+                          {banks.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.name}{b.account_number ? ` (${b.account_number})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label">Amount</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className="input"
+                          value={line.amount}
+                          onChange={(e) => {
+                            const next = [...(form.bank_splits || [])];
+                            next[idx] = { ...next[idx], amount: e.target.value };
+                            setForm({ ...form, bank_splits: next });
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          className="btn-secondary w-full"
+                          disabled={(form.bank_splits || []).length <= 1}
+                          onClick={() => {
+                            const next = (form.bank_splits || []).filter((_, i) => i !== idx);
+                            setForm({ ...form, bank_splits: next.length ? next : [{ bank_id: '', amount: 0 }] });
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-500">Total bank amount: {fmt(bankTotal())}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="label">Discount</label><input type="number" step="0.01" className="input" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} /></div>

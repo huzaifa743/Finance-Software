@@ -17,6 +17,8 @@ import Users from './pages/Users';
 import Settings from './pages/Settings';
 import RentBills from './pages/RentBills';
 import Payments from './pages/Payments';
+import Customers from './pages/Customers';
+import CustomerLedgerWindow from './pages/CustomerLedgerWindow';
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth();
@@ -29,6 +31,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/ledger/:customerId" element={<CustomerLedgerWindow />} />
       <Route
         path="/"
         element={
@@ -41,6 +44,7 @@ export default function App() {
         <Route path="branches" element={<Branches />} />
         <Route path="sales" element={<Sales />} />
         <Route path="receivables" element={<Receivables />} />
+        <Route path="customers" element={<Customers />} />
         <Route path="purchases" element={<Purchases />} />
         <Route path="suppliers" element={<Suppliers />} />
         <Route path="banks" element={<Banks />} />

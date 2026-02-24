@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import PDFDocument from 'pdfkit';
+import ExcelJS from 'exceljs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import db from '../db/database.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { logActivity } from '../middleware/activityLog.js';
+import { getCompanySettings, addPdfCompanyHeader, addExcelCompanyHeader, getLogoPath } from '../utils/companyBranding.js';
 
 const router = Router();
 
@@ -39,6 +41,131 @@ router.get('/:id', authenticate, (req, res) => {
   if (!row) return res.status(404).json({ error: 'Staff not found.' });
   const salaries = db.prepare('SELECT * FROM salary_records WHERE staff_id = ? ORDER BY month_year DESC').all(row.id);
   res.json({ ...row, salary_records: salaries });
+});
+
+router.get('/:id/ledger', authenticate, (req, res) => {
+  const staff = db.prepare(`
+    SELECT s.*, b.name as branch_name FROM staff s
+    LEFT JOIN branches b ON s.branch_id = b.id WHERE s.id = ?
+  `).get(req.params.id);
+  if (!staff) return res.status(404).json({ error: 'Staff not found.' });
+
+  const salaries = db.prepare(`
+    SELECT * FROM salary_records
+    WHERE staff_id = ?
+    ORDER BY month_year DESC
+  `).all(staff.id);
+
+  const payments = db.prepare(`
+    SELECT p.*, sr.month_year
+    FROM payments p
+    JOIN salary_records sr ON p.reference_type = 'salary' AND p.reference_id = sr.id
+    WHERE sr.staff_id = ?
+    ORDER BY p.payment_date DESC, p.id DESC
+  `).all(staff.id);
+
+  const totalSalary = salaries.reduce((a, r) => a + (parseFloat(r.net_salary) || 0), 0);
+  const totalPaid = payments.reduce((a, r) => a + (parseFloat(r.amount) || 0), 0);
+  const pending = totalSalary - totalPaid;
+
+  res.json({ staff, salaries, payments, totalSalary, totalPaid, pending });
+});
+
+router.get('/:id/ledger/export', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { type } = req.query;
+  if (!type) return res.status(400).json({ error: 'type is required (pdf or xlsx)' });
+
+  const staff = db.prepare(`
+    SELECT s.*, b.name as branch_name FROM staff s
+    LEFT JOIN branches b ON s.branch_id = b.id WHERE s.id = ?
+  `).get(id);
+  if (!staff) return res.status(404).json({ error: 'Staff not found.' });
+
+  const salaries = db.prepare(`
+    SELECT * FROM salary_records
+    WHERE staff_id = ?
+    ORDER BY month_year DESC
+  `).all(staff.id);
+
+  const payments = db.prepare(`
+    SELECT p.*, sr.month_year
+    FROM payments p
+    JOIN salary_records sr ON p.reference_type = 'salary' AND p.reference_id = sr.id
+    WHERE sr.staff_id = ?
+    ORDER BY p.payment_date DESC, p.id DESC
+  `).all(staff.id);
+
+  const totalSalary = salaries.reduce((a, r) => a + (parseFloat(r.net_salary) || 0), 0);
+  const totalPaid = payments.reduce((a, r) => a + (parseFloat(r.amount) || 0), 0);
+  const pending = totalSalary - totalPaid;
+
+  const company = getCompanySettings(db);
+
+  if (type === 'xlsx') {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = company.companyName || 'Finance Software';
+    const wsSal = wb.addWorksheet('Salaries');
+    addExcelCompanyHeader(wsSal, company, `Staff Ledger — ${staff.name}`, wb);
+    wsSal.addRow(['Month', 'Base Salary', 'Commission', 'Advances', 'Deductions', 'Net', 'Status']);
+    wsSal.lastRow.font = { bold: true };
+    salaries.forEach((r) => wsSal.addRow([r.month_year, r.base_salary, r.commission, r.advances, r.deductions, r.net_salary, r.status]));
+
+    const wsPay = wb.addWorksheet('Payments');
+    addExcelCompanyHeader(wsPay, company, `Payments — ${staff.name}`, wb);
+    wsPay.addRow(['Payment Date', 'Month', 'Mode', 'Amount', 'Remarks']);
+    wsPay.lastRow.font = { bold: true };
+    payments.forEach((p) => wsPay.addRow([p.payment_date, p.month_year, p.mode, p.amount, p.remarks || '–']));
+
+    const summary = wb.addWorksheet('Summary');
+    addExcelCompanyHeader(summary, company, `Staff Ledger — ${staff.name}`, wb);
+    summary.addRow(['Staff', staff.name]);
+    summary.addRow(['Total salary', totalSalary]);
+    summary.addRow(['Total paid', totalPaid]);
+    summary.addRow(['Pending', pending]);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    const fileName = `staff-ledger-${staff.name || id}.xlsx`.replace(/\s+/g, '-');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    await wb.xlsx.write(res);
+    return res.end();
+  }
+
+  if (type === 'pdf') {
+    const doc = new PDFDocument({ size: 'A4', margin: 30 });
+    const fileName = `staff-ledger-${staff.name || id}.pdf`.replace(/\s+/g, '-');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    doc.pipe(res);
+
+    addPdfCompanyHeader(doc, company, { title: 'Staff Ledger', subtitle: staff.name });
+    if (staff.branch_name) doc.fontSize(9).font('Helvetica').text(`Branch: ${staff.branch_name}`);
+    if (staff.contact) doc.fontSize(9).font('Helvetica').text(`Contact: ${staff.contact}`);
+    doc.fontSize(10).font('Helvetica').text(`Total salary: ${totalSalary}  |  Total paid: ${totalPaid}  |  Pending: ${pending}`);
+    doc.moveDown(0.75);
+
+    doc.fontSize(11).font('Helvetica-Bold').text('Salaries', { underline: true });
+    doc.moveDown(0.25);
+    salaries.forEach((r) => {
+      doc.fontSize(9).font('Helvetica').text(
+        `${r.month_year} | Base: ${r.base_salary} | Comm: ${r.commission} | Adv: ${r.advances} | Ded: ${r.deductions} | Net: ${r.net_salary} | ${r.status}`
+      );
+    });
+
+    doc.addPage();
+    doc.fontSize(11).font('Helvetica-Bold').text('Payments', { underline: true });
+    doc.moveDown(0.25);
+    payments.forEach((p) => {
+      doc.fontSize(9).font('Helvetica').text(
+        `${p.payment_date} | ${p.mode} | Month: ${p.month_year} | Amount: ${p.amount} | ${p.remarks || ''}`
+      );
+    });
+
+    doc.end();
+    return;
+  }
+
+  return res.status(400).json({ error: 'Unsupported export type. Use pdf or xlsx.' });
 });
 
 router.post('/', authenticate, requireRole('Super Admin', 'Finance Manager'), logActivity('create', 'staff', req => req.body?.name || ''), (req, res) => {
@@ -135,8 +262,9 @@ router.get('/salary/:id/slip', authenticate, (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     doc.pipe(res);
 
+    const company = getCompanySettings(db);
     const title = 'Salary Slip';
-    const logoPath = getAssetPath('logo.png');
+    const logoPath = company.logoPath || getAssetPath('logo.png');
     const signaturePath = getAssetPath('signature.png');
     const stampPath = getAssetPath('stamp.png');
     const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -149,7 +277,7 @@ router.get('/salary/:id/slip', authenticate, (req, res) => {
       doc.y += logoHeight + 8;
     }
 
-    doc.fontSize(isThermal ? 14 : 18).text('Finance Software', { align: 'left' });
+    doc.fontSize(isThermal ? 14 : 18).text(company.companyName || 'Finance Software', { align: 'left' });
     doc.moveDown(0.25);
     doc.fontSize(isThermal ? 11 : 14).text(title, { align: 'left' });
     doc.moveDown(0.25);

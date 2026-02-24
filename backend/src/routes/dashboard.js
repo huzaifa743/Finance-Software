@@ -33,13 +33,25 @@ router.get('/', authenticate, (req, res) => {
   const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
   const monthEnd = today.slice(0, 8) + String(lastDay).padStart(2, '0');
 
-  const salesTodayRealized = db.prepare(
-    "SELECT COALESCE(SUM(cash_amount), 0) + COALESCE(SUM(bank_amount), 0) as t FROM sales WHERE sale_date = ?"
+  const salesTodayCash = db.prepare(
+    'SELECT COALESCE(SUM(cash_amount), 0) as t FROM sales WHERE sale_date = ?'
   ).get(today);
+  const salesTodayBank = db.prepare(
+    'SELECT COALESCE(SUM(bank_amount), 0) as t FROM sales WHERE sale_date = ?'
+  ).get(today);
+  const salesTodayRealized = {
+    t: (parseFloat(salesTodayCash?.t) || 0) + (parseFloat(salesTodayBank?.t) || 0),
+  };
   const salesTodayCredit = db.prepare(
     'SELECT COALESCE(SUM(credit_amount), 0) as t FROM sales WHERE sale_date = ?'
   ).get(today);
   const salesMonth = db.prepare('SELECT COALESCE(SUM(net_sales), 0) as t FROM sales WHERE sale_date >= ? AND sale_date <= ?').get(monthStart, monthEnd);
+  const salesMonthCash = db.prepare(
+    'SELECT COALESCE(SUM(cash_amount), 0) as t FROM sales WHERE sale_date >= ? AND sale_date <= ?'
+  ).get(monthStart, monthEnd);
+  const salesMonthBank = db.prepare(
+    'SELECT COALESCE(SUM(bank_amount), 0) as t FROM sales WHERE sale_date >= ? AND sale_date <= ?'
+  ).get(monthStart, monthEnd);
   const purchasesMonth = db.prepare('SELECT COALESCE(SUM(total_amount), 0) as t FROM purchases WHERE purchase_date >= ? AND purchase_date <= ?').get(monthStart, monthEnd);
 
   const gross = parseFloat(salesMonth?.t) || 0;
@@ -62,16 +74,34 @@ router.get('/', authenticate, (req, res) => {
     ORDER BY total DESC
   `).all(monthStart, monthEnd);
 
+  const totalCashOpening = db.prepare('SELECT COALESCE(SUM(opening_cash), 0) as t FROM branches WHERE is_active = 1').get();
+  const cashSalesTotal = db.prepare('SELECT COALESCE(SUM(cash_amount), 0) as t FROM sales').get();
+  const bankDeposits = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM bank_transactions WHERE type IN ('deposit', 'transfer_in')").get();
+  const bankWithdrawals = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM bank_transactions WHERE type IN ('withdrawal', 'payment', 'transfer_out')").get();
+  const cashPaymentsOut = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM payments WHERE mode = 'cash' AND type IN ('supplier', 'rent_bill', 'salary')").get();
+  const cashReceivedRecovery = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM payments WHERE mode = 'cash' AND type = 'receivable_recovery'").get();
+  const cashInHand =
+    (parseFloat(totalCashOpening?.t) || 0) +
+    (parseFloat(cashSalesTotal?.t) || 0) +
+    (parseFloat(cashReceivedRecovery?.t) || 0) -
+    ((parseFloat(bankDeposits?.t) || 0) - (parseFloat(bankWithdrawals?.t) || 0)) -
+    (parseFloat(cashPaymentsOut?.t) || 0);
+
   res.json({
     widgets: {
       salesToday: parseFloat(salesTodayRealized?.t) || 0,
+      salesTodayCash: parseFloat(salesTodayCash?.t) || 0,
+      salesTodayBank: parseFloat(salesTodayBank?.t) || 0,
       salesTodayCredit: parseFloat(salesTodayCredit?.t) || 0,
       salesOnCredit: parseFloat(receivables?.t) || 0,
       salesMonth: parseFloat(salesMonth?.t) || 0,
+      salesMonthCash: parseFloat(salesMonthCash?.t) || 0,
+      salesMonthBank: parseFloat(salesMonthBank?.t) || 0,
       netProfit,
       bankBalance: bankBalance(),
       receivables: parseFloat(receivables?.t) || 0,
       payables: parseFloat(payables?.t) || 0,
+      cashInHand,
     },
     bankAccounts: bankListWithBalance(),
     branchComparison: branchSales,
@@ -119,6 +149,51 @@ function buildExportData(module, { from, to, branch_id }) {
   return { data, filename };
 }
 
+function dailyCombinedReport({ date, branch_id }) {
+  if (!date) {
+    const today = new Date().toISOString().slice(0, 10);
+    date = today;
+  }
+  const salesParams = [date];
+  let salesSql = `
+    SELECT s.*, b.name as branch_name
+    FROM sales s
+    LEFT JOIN branches b ON s.branch_id = b.id
+    WHERE s.sale_date = ?
+  `;
+  if (branch_id) {
+    salesSql += ' AND s.branch_id = ?';
+    salesParams.push(branch_id);
+  }
+  const salesRows = db.prepare(salesSql).all(...salesParams);
+
+  const purchParams = [date];
+  let purchSql = `
+    SELECT p.*, b.name as branch_name, s.name as supplier_name
+    FROM purchases p
+    LEFT JOIN branches b ON p.branch_id = b.id
+    LEFT JOIN suppliers s ON p.supplier_id = s.id
+    WHERE p.purchase_date = ?
+  `;
+  if (branch_id) {
+    purchSql += ' AND p.branch_id = ?';
+    purchParams.push(branch_id);
+  }
+  const purchaseRows = db.prepare(purchSql).all(...purchParams);
+
+  const salesTotal = salesRows.reduce((a, r) => a + (parseFloat(r.net_sales) || 0), 0);
+  const purchaseTotal = purchaseRows.reduce((a, r) => a + (parseFloat(r.total_amount) || 0), 0);
+
+  return { date, branch_id: branch_id || null, salesRows, purchaseRows, salesTotal, purchaseTotal };
+}
+
+router.get('/reports/daily-combined', authenticate, (req, res) => {
+  const { date, branch_id } = req.query;
+  if (!date) return res.status(400).json({ error: 'date required' });
+  const report = dailyCombinedReport({ date, branch_id });
+  res.json(report);
+});
+
 function toCsv(data) {
   const keys = Object.keys(data[0]);
   const header = keys.join(',');
@@ -128,10 +203,11 @@ function toCsv(data) {
 
 function writePdf(res, { title, data }) {
   const doc = new PDFDocument({ size: 'A4', margin: 30 });
+  doc.pipe(res);
   doc.fontSize(16).text(title, { align: 'left' });
   doc.moveDown(0.5);
   if (!data.length) {
-    doc.fontSize(11).text('No data.');
+    doc.fontSize(11).text('No data for the selected filters.');
     doc.end();
     return;
   }
@@ -144,23 +220,88 @@ function writePdf(res, { title, data }) {
 }
 
 router.get('/export', authenticate, async (req, res) => {
-  const { type, module, from, to, branch_id } = req.query;
+  const { type, module, from, to, branch_id, date } = req.query;
   if (!type || !module) return res.status(400).json({ error: 'type and module required' });
+  if (module === 'daily_combined') {
+    const report = dailyCombinedReport({ date, branch_id });
+    const filename = `daily_combined_${report.date}_${report.branch_id || 'all'}`;
+
+    if (type === 'xlsx') {
+      const wb = new ExcelJS.Workbook();
+      const wsSales = wb.addWorksheet('Sales');
+      wsSales.columns = [
+        { header: 'Date', key: 'sale_date', width: 12 },
+        { header: 'Branch', key: 'branch_name', width: 18 },
+        { header: 'Type', key: 'type', width: 10 },
+        { header: 'Cash', key: 'cash_amount', width: 12 },
+        { header: 'Bank', key: 'bank_amount', width: 12 },
+        { header: 'Credit', key: 'credit_amount', width: 12 },
+        { header: 'Discount', key: 'discount', width: 12 },
+        { header: 'Returns', key: 'returns_amount', width: 12 },
+        { header: 'Net sales', key: 'net_sales', width: 14 },
+      ];
+      wsSales.addRows(report.salesRows);
+      wsSales.getRow(1).font = { bold: true };
+
+      const wsPurch = wb.addWorksheet('Purchases');
+      wsPurch.columns = [
+        { header: 'Date', key: 'purchase_date', width: 12 },
+        { header: 'Branch', key: 'branch_name', width: 18 },
+        { header: 'Supplier', key: 'supplier_name', width: 20 },
+        { header: 'Invoice', key: 'invoice_no', width: 16 },
+        { header: 'Total', key: 'total_amount', width: 14 },
+        { header: 'Paid', key: 'paid_amount', width: 14 },
+        { header: 'Balance', key: 'balance', width: 14 },
+      ];
+      wsPurch.addRows(report.purchaseRows);
+      wsPurch.getRow(1).font = { bold: true };
+
+      const summary = wb.addWorksheet('Summary');
+      summary.addRow(['Date', report.date]);
+      summary.addRow(['Branch', report.branch_id || 'All']);
+      summary.addRow(['Total sales', report.salesTotal]);
+      summary.addRow(['Total purchases', report.purchaseTotal]);
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}.xlsx"`);
+      await wb.xlsx.write(res);
+      return res.end();
+    }
+
+    if (type === 'pdf') {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
+      const flat = [
+        { section: 'Summary', date: report.date, branch_id: report.branch_id || 'All', salesTotal: report.salesTotal, purchaseTotal: report.purchaseTotal },
+        ...report.salesRows.map((s) => ({ section: 'Sales', ...s })),
+        ...report.purchaseRows.map((p) => ({ section: 'Purchases', ...p })),
+      ];
+      return writePdf(res, { title: `Daily combined report — ${report.date}`, data: flat });
+    }
+
+    return res.status(400).json({ error: 'Unsupported type for daily_combined. Use xlsx or pdf.' });
+  }
+
   const { data, filename } = buildExportData(module, { from, to, branch_id });
 
-  if (type === 'json') {
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}.json"`);
-    return res.json(data);
+  if (!data.length) {
+    if (type === 'pdf') {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
+      return writePdf(res, { title: `${module.toUpperCase()} report`, data: [] });
+    }
+    if (type === 'xlsx') {
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet('Report');
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}.xlsx"`);
+      await wb.xlsx.write(res);
+      return res.end();
+    }
+    return res.status(400).json({ error: 'No data to export' });
   }
-  if (type === 'csv') {
-    if (!data.length) return res.status(400).json({ error: 'No data to export' });
-    const csv = toCsv(data);
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}.csv"`);
-    return res.send(csv);
-  }
+
   if (type === 'xlsx') {
-    if (!data.length) return res.status(400).json({ error: 'No data to export' });
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Report');
     const keys = Object.keys(data[0]);
@@ -177,7 +318,7 @@ router.get('/export', authenticate, async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
     return writePdf(res, { title: `${module.toUpperCase()} report`, data });
   }
-  res.status(400).json({ error: 'Unsupported export type. Use json, csv, xlsx, or pdf.' });
+  res.status(400).json({ error: 'Unsupported export type. Use xlsx or pdf.' });
 });
 
 export default router;

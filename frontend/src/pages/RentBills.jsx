@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { Plus, Pencil, Trash2, Paperclip } from 'lucide-react';
+import { Plus, Pencil, Trash2, Paperclip, BookOpen, FileDown, Printer } from 'lucide-react';
+import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf } from '../utils/printHeader';
 
 export default function RentBills() {
   const [list, setList] = useState([]);
@@ -13,6 +14,10 @@ export default function RentBills() {
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [filterCategory, setFilterCategory] = useState('');
+  const [ledgerModal, setLedgerModal] = useState(false);
+  const [ledgerData, setLedgerData] = useState(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [query, setQuery] = useState('');
 
   const load = () => api.get('/rent-bills').then(setList).catch((e) => setErr(e.message));
 
@@ -110,7 +115,86 @@ export default function RentBills() {
   };
 
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  const filtered = filterCategory ? list.filter((r) => r.category === filterCategory) : list;
+
+  const printLedger = async () => {
+    if (!ledgerData) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    try {
+      const company = await getCompanyForPrint();
+      const headerHtml = buildPrintHeaderHtml(company, 'Rent & Bills Ledger');
+      const items = ledgerData.items || [];
+      const body = `
+        <p>Total amount: ${fmt(ledgerData.totalAmount)} | Total paid: ${fmt(ledgerData.totalPaid)} | Balance: ${fmt(ledgerData.totalBalance)}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Category</th>
+              <th>Amount</th>
+              <th>Paid</th>
+              <th>Balance</th>
+              <th>Due Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(item => `
+              <tr>
+                <td>${item.bill.title || '–'}</td>
+                <td>${item.bill.category || 'bill'}</td>
+                <td style="text-align:right;">${fmt(item.totalAmount)}</td>
+                <td style="text-align:right;">${fmt(item.totalPaid)}</td>
+                <td style="text-align:right;">${fmt(item.balance)}</td>
+                <td>${item.bill.due_date || '–'}</td>
+                <td>${item.bill.status || 'pending'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      const html = `
+        <html>
+          <head>
+            <title>Rent & Bills Ledger</title>
+            <style>
+              body { font-family: system-ui, sans-serif; padding: 16px; }
+              h1, h2 { margin: 12px 0 8px; }
+              table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+              th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
+              th { background: #f3f4f6; }
+            </style>
+          </head>
+          <body>
+            ${headerHtml}
+            ${body}
+          </body>
+        </html>
+      `;
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    } catch (e) {
+      win.close();
+    }
+  };
+  const normalize = (v) => String(v || '').toLowerCase();
+  const needle = query.trim().toLowerCase();
+  const byCategory = filterCategory ? list.filter((r) => r.category === filterCategory) : list;
+  const filtered = needle
+    ? byCategory.filter((r) => {
+        const hay = [
+          r.title,
+          r.category,
+          r.remarks,
+          r.due_date,
+          r.status,
+          r.amount,
+        ].map(normalize).join(' ');
+        return hay.includes(needle);
+      })
+    : byCategory;
 
   return (
     <div className="space-y-6">
@@ -119,18 +203,27 @@ export default function RentBills() {
           <h1 className="text-2xl font-bold text-slate-900">Rent & Bills</h1>
           <p className="text-slate-500 mt-1">Add rent and bills with optional documents. Pay from Payments.</p>
         </div>
-        <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Rent / Bill</button>
+        <div className="flex gap-2">
+          <button onClick={async () => { setLedgerModal(true); setLedgerData(null); setLedgerLoading(true); try { const d = await api.get('/rent-bills/ledger'); setLedgerData(d); } catch (e) { setErr(e.message); } finally { setLedgerLoading(false); } }} className="btn-secondary"><BookOpen className="w-4 h-4" /> Ledger</button>
+          <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Rent / Bill</button>
+        </div>
       </div>
 
       {err && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">{err}</div>}
 
       <div className="card p-4">
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-4 items-center">
           <select className="input w-48" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
             <option value="">All (Rent & Bill)</option>
             <option value="rent">Rent</option>
             <option value="bill">Bill</option>
           </select>
+          <input
+            className="input w-full md:w-[360px]"
+            placeholder="Search by title, remarks, status, due date"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
         </div>
       </div>
 
@@ -220,6 +313,149 @@ export default function RentBills() {
               )}
             </div>
             <button type="button" onClick={() => { setAttachmentsModal(null); setAttachments([]); }} className="btn-secondary mt-4">Close</button>
+          </div>
+        </div>
+      )}
+
+      {ledgerModal && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-white">
+          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+            <h2 className="text-xl font-semibold text-slate-900">Rent & Bills Ledger</h2>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    setErr('');
+                    const token = localStorage.getItem('token');
+                    const res = await fetch('/api/rent-bills/ledger/export?type=xlsx', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+                    if (!res.ok) {
+                      const d = await res.json().catch(() => ({}));
+                      throw new Error(d.error || res.statusText || 'Export failed');
+                    }
+                    const blob = await res.blob();
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `rent-bills-ledger.xlsx`; a.click(); URL.revokeObjectURL(a.href);
+                  } catch (e) { setErr(e.message); }
+                }}
+                className="btn-secondary"
+              >
+                <FileDown className="w-4 h-4" /> Excel
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    setErr('');
+                    if (ledgerData) {
+                      const company = await getCompanyForPrint();
+                      const headerHtml = buildPrintHeaderHtml(company, 'Rent & Bills Ledger', '', { forPdf: true });
+                      const items = ledgerData.items || [];
+                      const body = `
+        <p>Total amount: ${fmt(ledgerData.totalAmount)} | Total paid: ${fmt(ledgerData.totalPaid)} | Balance: ${fmt(ledgerData.totalBalance)}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Category</th>
+              <th>Amount</th>
+              <th>Paid</th>
+              <th>Balance</th>
+              <th>Due Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(item => `
+              <tr>
+                <td>${item.bill.title || '–'}</td>
+                <td>${item.bill.category || 'bill'}</td>
+                <td style="text-align:right;">${fmt(item.totalAmount)}</td>
+                <td style="text-align:right;">${fmt(item.totalPaid)}</td>
+                <td style="text-align:right;">${fmt(item.balance)}</td>
+                <td>${item.bill.due_date || '–'}</td>
+                <td>${item.bill.status || 'pending'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+                      const fullHtml = `
+        <html>
+          <head>
+            <title>Rent & Bills Ledger</title>
+            <style>
+              body { font-family: system-ui, sans-serif; padding: 16px; }
+              h1, h2 { margin: 12px 0 8px; }
+              table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+              th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
+              th { background: #f3f4f6; }
+            </style>
+          </head>
+          <body>
+            ${headerHtml}
+            ${body}
+          </body>
+        </html>
+      `;
+                      await exportPrintAsPdf(fullHtml, 'rent-bills-ledger.pdf');
+                      return;
+                    }
+                    const token = localStorage.getItem('token');
+                    const res = await fetch('/api/rent-bills/ledger/export?type=pdf', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+                    if (!res.ok) {
+                      const d = await res.json().catch(() => ({}));
+                      throw new Error(d.error || res.statusText || 'Export failed');
+                    }
+                    const blob = await res.blob();
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `rent-bills-ledger.pdf`; a.click(); URL.revokeObjectURL(a.href);
+                  } catch (e) { setErr(e.message); }
+                }}
+                className="btn-secondary"
+              >
+                <FileDown className="w-4 h-4" /> PDF
+              </button>
+              <button onClick={printLedger} className="btn-secondary"><Printer className="w-4 h-4" /> Print</button>
+              <button onClick={() => { setLedgerModal(false); setLedgerData(null); }} className="btn-secondary">Close</button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto p-6 print:block">
+            {ledgerLoading && <p className="text-slate-500">Loading ledger…</p>}
+            {ledgerData && !ledgerLoading && (
+              <>
+                <div className="mb-4 flex flex-wrap gap-6 text-sm">
+                  <span className="font-semibold text-slate-700">Total amount: {fmt(ledgerData.totalAmount)}</span>
+                  <span className="font-semibold text-slate-700">Total paid: {fmt(ledgerData.totalPaid)}</span>
+                  <span className="font-semibold text-slate-700">Total balance: {fmt(ledgerData.totalBalance)}</span>
+                </div>
+                <table className="w-full text-sm border border-slate-200">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium text-slate-700">Title</th>
+                      <th className="text-left px-4 py-3 font-medium text-slate-700">Category</th>
+                      <th className="text-right px-4 py-3 font-medium text-slate-700">Amount</th>
+                      <th className="text-right px-4 py-3 font-medium text-slate-700">Paid</th>
+                      <th className="text-right px-4 py-3 font-medium text-slate-700">Balance</th>
+                      <th className="text-left px-4 py-3 font-medium text-slate-700">Due Date</th>
+                      <th className="text-left px-4 py-3 font-medium text-slate-700">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {(ledgerData.items || []).map((item) => (
+                      <tr key={item.bill.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium">{item.bill.title}</td>
+                        <td className="px-4 py-3 capitalize">{item.bill.category || 'bill'}</td>
+                        <td className="px-4 py-3 text-right font-mono">{fmt(item.totalAmount)}</td>
+                        <td className="px-4 py-3 text-right font-mono">{fmt(item.totalPaid)}</td>
+                        <td className="px-4 py-3 text-right font-mono font-medium">{fmt(item.balance)}</td>
+                        <td className="px-4 py-3">{item.bill.due_date || '–'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${item.bill.status === 'pending' ? 'bg-amber-100 text-amber-800' : item.bill.status === 'partial' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>{item.bill.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {(!ledgerData.items || !ledgerData.items.length) && <p className="p-8 text-center text-slate-500">No rent or bills.</p>}
+              </>
+            )}
           </div>
         </div>
       )}
