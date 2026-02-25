@@ -45,6 +45,11 @@ router.get('/', authenticate, (req, res) => {
   const salesTodayCredit = db.prepare(
     'SELECT COALESCE(SUM(credit_amount), 0) as t FROM sales WHERE sale_date = ?'
   ).get(today);
+  const receivableRecoveryToday = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) as t
+    FROM payments
+    WHERE type = 'receivable_recovery' AND payment_date = ?
+  `).get(today);
   const salesMonth = db.prepare('SELECT COALESCE(SUM(net_sales), 0) as t FROM sales WHERE sale_date >= ? AND sale_date <= ?').get(monthStart, monthEnd);
   const salesMonthCash = db.prepare(
     'SELECT COALESCE(SUM(cash_amount), 0) as t FROM sales WHERE sale_date >= ? AND sale_date <= ?'
@@ -104,7 +109,7 @@ router.get('/', authenticate, (req, res) => {
 
   res.json({
     widgets: {
-      salesToday: parseFloat(salesTodayRealized?.t) || 0,
+      salesToday: (parseFloat(salesTodayRealized?.t) || 0) + (parseFloat(receivableRecoveryToday?.t) || 0),
       salesTodayCash: parseFloat(salesTodayCash?.t) || 0,
       salesTodayBank: parseFloat(salesTodayBank?.t) || 0,
       salesTodayCredit: parseFloat(salesTodayCredit?.t) || 0,
