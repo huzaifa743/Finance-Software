@@ -76,7 +76,13 @@ router.get('/', authenticate, (req, res) => {
 
   const totalCashOpening = db.prepare('SELECT COALESCE(SUM(opening_cash), 0) as t FROM branches WHERE is_active = 1').get();
   const cashSalesTotal = db.prepare('SELECT COALESCE(SUM(cash_amount), 0) as t FROM sales').get();
-  const bankDeposits = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM bank_transactions WHERE type IN ('deposit', 'transfer_in')").get();
+  // Treat deposits created from sale records as direct-to-bank receipts (do not reduce cash-in-hand)
+  const bankDeposits = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) as t
+    FROM bank_transactions
+    WHERE type IN ('deposit', 'transfer_in')
+      AND (reference IS NULL OR reference NOT LIKE 'sale-%')
+  `).get();
   const bankWithdrawals = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM bank_transactions WHERE type IN ('withdrawal', 'payment', 'transfer_out')").get();
   const cashPaymentsOut = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM payments WHERE mode = 'cash' AND type IN ('supplier', 'rent_bill', 'salary')").get();
   const cashReceivedRecovery = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM payments WHERE mode = 'cash' AND type = 'receivable_recovery'").get();
