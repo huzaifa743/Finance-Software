@@ -62,6 +62,15 @@ export default function Reports() {
         .then(setData)
         .catch((e) => setErr(e.message))
         .finally(run);
+    } else if (module === 'branch_summary') {
+      const qs = new URLSearchParams();
+      if (from) qs.set('from', from);
+      if (to) qs.set('to', to);
+      api
+        .get(`/dashboard/reports/branch-summary?${qs.toString()}`)
+        .then(setData)
+        .catch((e) => setErr(e.message))
+        .finally(run);
     } else if (module === 'daily_combined') {
       api
         .get(append(`/dashboard/reports/daily-combined?date=${date}`, branchId ? `branch_id=${branchId}` : ''))
@@ -89,6 +98,23 @@ export default function Reports() {
         const q = new URLSearchParams({ type: fmt, module });
         if (module === 'daily_combined') {
           q.set('date', date);
+          if (branchId) q.set('branch_id', branchId);
+        } else if (module === 'sales' || module === 'purchases') {
+          if (type === 'daily' && date) {
+            q.set('from', date);
+            q.set('to', date);
+          } else if (type === 'monthly' && month && year) {
+            const m = String(month).padStart(2, '0');
+            const y = parseInt(year, 10);
+            const fromDate = `${y}-${m}-01`;
+            const lastDay = new Date(y, parseInt(m, 10), 0).getDate();
+            const toDate = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+            q.set('from', fromDate);
+            q.set('to', toDate);
+          } else {
+            if (from) q.set('from', from);
+            if (to) q.set('to', to);
+          }
           if (branchId) q.set('branch_id', branchId);
         } else {
           if (from) q.set('from', from);
@@ -121,6 +147,15 @@ export default function Reports() {
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const rows = data?.rows || [];
   const total = data?.total ?? (Array.isArray(data) ? data.reduce((a, r) => a + (Number(r.total) || Number(r.total_amount) || Number(r.amount) || 0), 0) : 0);
+  const branchLedgerTotals =
+    module === 'branch_ledger' && rows.length
+      ? {
+          totalCreditSales: rows.reduce((a, r) => a + (Number(r.credit_sales) || 0), 0),
+          totalReceivables: rows.reduce((a, r) => a + (Number(r.receivable_amount) || 0), 0),
+          totalReceived: rows.reduce((a, r) => a + (Number(r.received_amount) || 0), 0),
+          totalPending: rows.reduce((a, r) => a + (Number(r.pending_balance) || 0), 0),
+        }
+      : null;
 
   return (
     <div className="space-y-6">
@@ -152,6 +187,7 @@ export default function Reports() {
               if (next === 'inventory') setType('range');
               if (next === 'daily_combined') setType('daily');
               if (next === 'branch_ledger') setType('range');
+              if (next === 'branch_summary') setType('range');
               if (next === 'pl') setType('range');
               setInventorySummary([]);
             }}>
@@ -159,6 +195,7 @@ export default function Reports() {
               <option value="purchases">Purchases</option>
               <option value="inventory">Inventory</option>
               <option value="daily_combined">Daily combined (Sales + Purchases)</option>
+              <option value="branch_summary">Branch-wise sales / bank / purchases</option>
               <option value="branch_ledger">Branch-wise receivables ledger</option>
               <option value="pl">Profit &amp; Loss</option>
             </select>
@@ -166,8 +203,8 @@ export default function Reports() {
           <div>
             <label className="label">Report type</label>
             <select className="input w-40" value={type} onChange={(e) => { setType(e.target.value); setData(null); }}>
-              {module !== 'inventory' && module !== 'daily_combined' && module !== 'branch_ledger' && <option value="daily">Daily</option>}
-              {module !== 'inventory' && module !== 'daily_combined' && module !== 'branch_ledger' && <option value="monthly">Monthly</option>}
+              {module !== 'inventory' && module !== 'daily_combined' && module !== 'branch_ledger' && module !== 'branch_summary' && <option value="daily">Daily</option>}
+              {module !== 'inventory' && module !== 'daily_combined' && module !== 'branch_ledger' && module !== 'branch_summary' && <option value="monthly">Monthly</option>}
               {module !== 'daily_combined' && <option value="range">Date range</option>}
               {module === 'purchases' && <option value="supplier">Supplier-wise</option>}
               {module === 'daily_combined' && <option value="daily">Daily</option>}
@@ -289,8 +326,41 @@ export default function Reports() {
       {data && module !== 'daily_combined' && (
         <div className="card overflow-hidden">
           <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-            <h3 className="font-semibold text-slate-900">{module === 'inventory' ? 'Inventory Sales — Date when sold · Sold quantity' : 'Report result'}</h3>
-            {typeof total === 'number' && <p className="text-lg font-bold text-primary-600">Total: {fmt(total)}</p>}
+            {module === 'branch_ledger' ? (
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-4">
+                <div>
+                  <h3 className="font-semibold text-slate-900">Branch-wise receivables summary</h3>
+                  <p className="text-xs text-slate-500">Total credit sales, received and pending across all branches.</p>
+                </div>
+                {branchLedgerTotals && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                    <div className="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2">
+                      <p className="font-medium text-emerald-700 uppercase tracking-wide">Total credit sales</p>
+                      <p className="mt-1 text-base font-bold text-emerald-900">{fmt(branchLedgerTotals.totalCreditSales)}</p>
+                    </div>
+                    <div className="rounded-lg bg-sky-50 border border-sky-100 px-3 py-2">
+                      <p className="font-medium text-sky-700 uppercase tracking-wide">Total receivables</p>
+                      <p className="mt-1 text-base font-bold text-sky-900">{fmt(branchLedgerTotals.totalReceivables)}</p>
+                    </div>
+                    <div className="rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2">
+                      <p className="font-medium text-indigo-700 uppercase tracking-wide">Total received</p>
+                      <p className="mt-1 text-base font-bold text-indigo-900">{fmt(branchLedgerTotals.totalReceived)}</p>
+                    </div>
+                    <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
+                      <p className="font-medium text-amber-700 uppercase tracking-wide">Pending received</p>
+                      <p className="mt-1 text-base font-bold text-amber-900">{fmt(branchLedgerTotals.totalPending)}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <h3 className="font-semibold text-slate-900">
+                  {module === 'inventory' ? 'Inventory Sales — Date when sold · Sold quantity' : 'Report result'}
+                </h3>
+                {typeof total === 'number' && <p className="text-lg font-bold text-primary-600">Total: {fmt(total)}</p>}
+              </>
+            )}
           </div>
           {module === 'inventory' && inventorySummary.length > 0 && (
             <div className="p-4 border-b border-slate-200">

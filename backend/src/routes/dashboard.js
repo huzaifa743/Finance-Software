@@ -162,6 +162,10 @@ function buildExportData(module, { from, to, branch_id }) {
     sql += ' ORDER BY i.sale_date DESC';
     data = db.prepare(sql).all(...params);
     filename = `inventory_${from || 'all'}_${to || 'all'}`;
+  } else if (module === 'branch_summary') {
+    const report = branchSalesPurchasesSummary({ from, to });
+    data = report.rows || [];
+    filename = `branch_summary_${from || 'all'}_${to || 'all'}`;
   }
   return { data, filename };
 }
@@ -204,10 +208,74 @@ function dailyCombinedReport({ date, branch_id }) {
   return { date, branch_id: branch_id || null, salesRows, purchaseRows, salesTotal, purchaseTotal };
 }
 
+function branchSalesPurchasesSummary({ from, to }) {
+  const branches = db.prepare('SELECT id, name FROM branches WHERE is_active = 1 ORDER BY name').all();
+  const byId = new Map();
+  branches.forEach((b) => {
+    byId.set(b.id, {
+      branch_id: b.id,
+      branch_name: b.name,
+      total_sales: 0,
+      cash_sales: 0,
+      bank_sales: 0,
+      total_purchases: 0,
+    });
+  });
+
+  const salesWhere = [];
+  const salesParams = [];
+  if (from) { salesWhere.push('sale_date >= ?'); salesParams.push(from); }
+  if (to) { salesWhere.push('sale_date <= ?'); salesParams.push(to); }
+  const salesSql = `
+    SELECT branch_id,
+      COALESCE(SUM(net_sales), 0) as total_sales,
+      COALESCE(SUM(cash_amount), 0) as cash_sales,
+      COALESCE(SUM(bank_amount), 0) as bank_sales
+    FROM sales
+    ${salesWhere.length ? `WHERE ${salesWhere.join(' AND ')}` : ''}
+    GROUP BY branch_id
+  `;
+  const salesRows = db.prepare(salesSql).all(...salesParams);
+  salesRows.forEach((r) => {
+    const row = byId.get(r.branch_id);
+    if (!row) return;
+    row.total_sales = parseFloat(r.total_sales) || 0;
+    row.cash_sales = parseFloat(r.cash_sales) || 0;
+    row.bank_sales = parseFloat(r.bank_sales) || 0;
+  });
+
+  const purchWhere = [];
+  const purchParams = [];
+  if (from) { purchWhere.push('purchase_date >= ?'); purchParams.push(from); }
+  if (to) { purchWhere.push('purchase_date <= ?'); purchParams.push(to); }
+  const purchSql = `
+    SELECT branch_id,
+      COALESCE(SUM(total_amount), 0) as total_purchases
+    FROM purchases
+    ${purchWhere.length ? `WHERE ${purchWhere.join(' AND ')}` : ''}
+    GROUP BY branch_id
+  `;
+  const purchRows = db.prepare(purchSql).all(...purchParams);
+  purchRows.forEach((r) => {
+    const row = byId.get(r.branch_id);
+    if (!row) return;
+    row.total_purchases = parseFloat(r.total_purchases) || 0;
+  });
+
+  const rows = Array.from(byId.values());
+  return { from: from || null, to: to || null, rows };
+}
+
 router.get('/reports/daily-combined', authenticate, (req, res) => {
   const { date, branch_id } = req.query;
   if (!date) return res.status(400).json({ error: 'date required' });
   const report = dailyCombinedReport({ date, branch_id });
+  res.json(report);
+});
+
+router.get('/reports/branch-summary', authenticate, (req, res) => {
+  const { from, to } = req.query;
+  const report = branchSalesPurchasesSummary({ from, to });
   res.json(report);
 });
 
