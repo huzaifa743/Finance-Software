@@ -64,6 +64,10 @@ router.get('/', authenticate, (req, res) => {
   const payables = db.prepare(`
     SELECT COALESCE(SUM(balance), 0) as t FROM purchases WHERE balance > 0
   `).get();
+  const totalPaidAll = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) as t
+    FROM payments
+  `).get();
   const receivableRecoveredTotal = db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as t
     FROM payments
@@ -88,7 +92,7 @@ router.get('/', authenticate, (req, res) => {
     WHERE type IN ('deposit', 'transfer_in')
       AND (reference IS NULL OR reference NOT LIKE 'sale-%')
   `).get();
-  const bankWithdrawals = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM bank_transactions WHERE type IN ('withdrawal', 'payment', 'transfer_out')").get();
+  const bankWithdrawals = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM bank_transactions WHERE type IN ('withdrawal', 'transfer_out')").get();
   const cashPaymentsOut = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM payments WHERE mode = 'cash' AND type IN ('supplier', 'rent_bill', 'salary')").get();
   const cashReceivedRecovery = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM payments WHERE mode = 'cash' AND type = 'receivable_recovery'").get();
   const cashInHand =
@@ -114,6 +118,7 @@ router.get('/', authenticate, (req, res) => {
       payables: parseFloat(payables?.t) || 0,
       cashInHand,
       receivableRecovered: parseFloat(receivableRecoveredTotal?.t) || 0,
+      totalPaid: parseFloat(totalPaidAll?.t) || 0,
     },
     bankAccounts: bankListWithBalance(),
     branchComparison: branchSales,

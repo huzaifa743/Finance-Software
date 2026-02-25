@@ -32,6 +32,7 @@ export default function Dashboard() {
     { label: 'Cash in Hand', value: widgets.cashInHand, icon: PiggyBank, color: 'bg-lime-500' },
     { label: 'Bank Balance', value: widgets.bankBalance, icon: Landmark, color: 'bg-blue-600' },
     { label: 'Payables', value: widgets.payables, icon: Truck, color: 'bg-rose-500' },
+    { label: 'Total Paid (All)', value: widgets.totalPaid, icon: DollarSign, color: 'bg-emerald-700' },
   ];
 
   const bankCards = (Array.isArray(bankAccounts) ? bankAccounts : []).map((b) => ({
