@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { Save, FileText, X, Download, Upload } from 'lucide-react';
+import { Save, FileText, X, Download, Upload, Trash2, AlertTriangle } from 'lucide-react';
 
 const AUDIT_MODULES = ['', 'settings', 'sales', 'purchases', 'branches', 'users', 'banks', 'receivables', 'inventory', 'pl', 'staff'];
 
@@ -36,6 +36,9 @@ export default function Settings() {
   const [logoFile, setLogoFile] = useState(null);
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoUrl, setLogoUrl] = useState(null);
+  const [clearModalOpen, setClearModalOpen] = useState(false);
+  const [clearConfirm, setClearConfirm] = useState('');
+  const [clearLoading, setClearLoading] = useState(false);
 
   const update = (k, v) => setSettings((s) => ({ ...s, [k]: v }));
 
@@ -146,6 +149,25 @@ export default function Settings() {
     }
   };
 
+  const runClearData = async () => {
+    if (clearConfirm.trim().toUpperCase() !== 'CLEAR') {
+      setErr('Type CLEAR to confirm.');
+      return;
+    }
+    setErr('');
+    setClearLoading(true);
+    try {
+      const res = await api.post('/settings/clear-data', {});
+      alert(res.message || 'All transactional data has been cleared.');
+      setClearModalOpen(false);
+      setClearConfirm('');
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setClearLoading(false);
+    }
+  };
+
   if (loading) return <div className="flex items-center justify-center py-20"><div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" /></div>;
 
   return (
@@ -231,6 +253,29 @@ export default function Settings() {
           <p className="text-sm text-slate-600 mb-3">View user activity and change history.</p>
           <button type="button" onClick={() => setAuditOpen(true)} className="btn-secondary"><FileText className="w-4 h-4" /> View audit logs</button>
         </Section>
+
+        <Section title="Danger zone — Clear all data">
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 text-sm text-rose-700">
+              <AlertTriangle className="w-5 h-5 mt-0.5" />
+              <p>
+                This will permanently delete all <strong>sales, receivables, purchases, payments, bank transactions, inventory sales, rent bills</strong>,
+                and related attachments and logs. Master data (branches, banks, products, suppliers, users, and settings) will be kept.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setClearModalOpen(true); setClearConfirm(''); }}
+              disabled={user?.role_name !== 'Super Admin'}
+              className="btn-secondary border-rose-500 text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4 mr-1" /> Clear all transactional data
+            </button>
+            {user?.role_name !== 'Super Admin' && (
+              <p className="text-xs text-slate-500">Only Super Admin can clear data.</p>
+            )}
+          </div>
+        </Section>
       </div>
 
       {auditOpen && (
@@ -257,6 +302,61 @@ export default function Settings() {
                 </tbody>
               </table>
               {!auditLogs.length && <p className="py-8 text-center text-slate-500">No audit logs.</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {clearModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">Clear all transactional data</h2>
+              <button
+                type="button"
+                onClick={() => { setClearModalOpen(false); setClearConfirm(''); }}
+                className="p-2 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="flex items-start gap-2 text-sm text-slate-700">
+                <AlertTriangle className="w-5 h-5 mt-0.5 text-rose-600" />
+                <p>
+                  This action will permanently delete <strong>all transactional records</strong>:
+                  sales, receivables and recoveries, purchases, payments, bank transactions, inventory sales,
+                  rent bills, and their attachments and logs. This cannot be undone.
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-600 mb-2">
+                  To confirm, type <span className="font-mono font-semibold">CLEAR</span> in the box below.
+                </p>
+                <input
+                  className="input w-full"
+                  value={clearConfirm}
+                  onChange={(e) => setClearConfirm(e.target.value)}
+                  placeholder="Type CLEAR to confirm"
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={runClearData}
+                  disabled={clearLoading || clearConfirm.trim().toUpperCase() !== 'CLEAR'}
+                  className="btn-primary bg-rose-600 hover:bg-rose-700 border-rose-700 disabled:opacity-50"
+                >
+                  {clearLoading ? 'Clearing…' : 'Yes, delete all data'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setClearModalOpen(false); setClearConfirm(''); }}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -57,9 +57,8 @@ router.patch('/customers/:id', authenticate, requireNotAuditor, logActivity('upd
 router.get('/', authenticate, (req, res) => {
   const { customer_id, branch_id, status } = req.query;
   let sql = `
-    SELECT r.*, c.name as customer_name, c.contact, b.name as branch_name
+    SELECT r.*, b.name as branch_name
     FROM receivables r
-    LEFT JOIN customers c ON r.customer_id = c.id
     LEFT JOIN branches b ON r.branch_id = b.id WHERE 1=1
   `;
   const params = [];
@@ -123,6 +122,70 @@ router.get('/ledger/:customerId', authenticate, (req, res) => {
   });
 
   res.json({ customer, receivables, recoveries, entries, totalDue, recoveredTotal });
+});
+
+// Branch-wise receivables ledger (credit / debit / balance) similar to customer ledger
+router.get('/branch-ledger/:branchId', authenticate, (req, res) => {
+  const { branchId } = req.params;
+
+  const receivables = db.prepare(`
+    SELECT r.*, b.name as branch_name
+    FROM receivables r
+    LEFT JOIN branches b ON r.branch_id = b.id
+    WHERE r.branch_id = ?
+    ORDER BY r.created_at ASC
+  `).all(branchId);
+
+  const recoveries = db.prepare(`
+    SELECT rr.*, r.amount as original_amount
+    FROM receivable_recoveries rr
+    JOIN receivables r ON rr.receivable_id = r.id
+    WHERE r.branch_id = ?
+    ORDER BY rr.recovered_at ASC
+  `).all(branchId);
+
+  const totalDue = receivables
+    .filter(r => r.status === 'pending' || r.status === 'partial')
+    .reduce((a, r) => a + (parseFloat(r.amount) || 0), 0);
+  const recoveredTotal = recoveries.reduce((a, r) => a + (parseFloat(r.amount) || 0), 0);
+
+  const branch = db.prepare('SELECT * FROM branches WHERE id = ?').get(branchId);
+
+  // Build unified ledger entries: Credit (receivables), Debit (recoveries), running Balance
+  const entries = [];
+  receivables.forEach((r) => {
+    const amt = parseFloat(r.amount) || 0;
+    entries.push({
+      date: (r.created_at || '').slice(0, 10),
+      sortKey: r.created_at || '',
+      description: `Credit sale${r.id ? ` #${r.id}` : ''}${r.branch_name ? ` (${r.branch_name})` : ''}`,
+      credit: amt,
+      debit: 0,
+      id: `branch-rec-${r.id}`,
+      type: 'receivable',
+    });
+  });
+  recoveries.forEach((rr) => {
+    const amt = parseFloat(rr.amount) || 0;
+    entries.push({
+      date: (rr.recovered_at || '').slice(0, 10),
+      sortKey: rr.recovered_at || '',
+      description: rr.remarks ? `Recovery — ${rr.remarks}` : 'Recovery',
+      credit: 0,
+      debit: amt,
+      id: `branch-recovery-${rr.id}`,
+      type: 'recovery',
+    });
+  });
+
+  entries.sort((a, b) => (a.sortKey || '').localeCompare(b.sortKey || '') || 0);
+  let runningBalance = 0;
+  entries.forEach((e) => {
+    runningBalance += (e.credit || 0) - (e.debit || 0);
+    e.balance = runningBalance;
+  });
+
+  res.json({ branch, receivables, recoveries, entries, totalDue, recoveredTotal });
 });
 
 router.get('/ledger/:customerId/pdf', authenticate, (req, res) => {
@@ -269,9 +332,8 @@ router.get('/ledger/:customerId/export', authenticate, async (req, res) => {
 
 router.get('/overdue', authenticate, (req, res) => {
   const rows = db.prepare(`
-    SELECT r.*, c.name as customer_name, c.contact, b.name as branch_name
+    SELECT r.*, b.name as branch_name
     FROM receivables r
-    LEFT JOIN customers c ON r.customer_id = c.id
     LEFT JOIN branches b ON r.branch_id = b.id
     WHERE r.status = 'pending' AND r.due_date IS NOT NULL AND r.due_date < date('now')
     ORDER BY r.due_date

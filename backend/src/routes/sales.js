@@ -213,10 +213,6 @@ router.post('/', authenticate, requireNotAuditor, logActivity('create', 'sales',
 
     const net = Math.max(0, cash + bank + credit - disc - ret);
 
-    if (credit > 0 && !customer_id) {
-      return res.status(400).json({ error: 'Customer is required when entering credit sales (amount will be added to Receivables).' });
-    }
-
     if (validSplits.length > 0) {
       for (const s of validSplits) {
         const bankRow = db.prepare('SELECT id FROM banks WHERE id = ?').get(s.bank_id);
@@ -260,12 +256,12 @@ router.post('/', authenticate, requireNotAuditor, logActivity('create', 'sales',
     );
     const saleId = r.lastInsertRowid;
 
-    // Auto-create receivable when credit amount > 0 (credit sale → receivables)
-    if (credit > 0 && customer_id && saleId) {
+    // Auto-create receivable when credit amount > 0 (credit sale → receivables, branch-wise; customer optional)
+    if (credit > 0 && saleId) {
       db.prepare(`
         INSERT INTO receivables (customer_id, sale_id, branch_id, amount, due_date, status)
         VALUES (?, ?, ?, ?, ?, 'pending')
-      `).run(customer_id, saleId, branch_id || null, credit, due_date || null);
+      `).run(customer_id || null, saleId, branch_id || null, credit, due_date || null);
     }
 
     // Record bank deposits and splits for bank portion of sale
@@ -324,10 +320,6 @@ router.patch('/:id', authenticate, requireNotAuditor, logActivity('update', 'sal
     }
 
     const net = Math.max(0, cash + bank + credit - disc - ret);
-
-    if (credit > 0 && req.body.customer_id !== undefined && !req.body.customer_id) {
-      return res.status(400).json({ error: 'Customer is required for credit sales.' });
-    }
 
     if (validSplits.length > 0) {
       for (const s of validSplits) {
@@ -411,6 +403,14 @@ router.delete('/:id', authenticate, requireRole('Super Admin', 'Finance Manager'
     const existing = db.prepare('SELECT * FROM sales WHERE id = ?').get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Sale not found.' });
     if (existing.is_locked) return res.status(400).json({ error: 'Sale is locked.' });
+
+    // Remove any receivables and their recoveries that were created from this sale
+    const relatedReceivables = db.prepare('SELECT id FROM receivables WHERE sale_id = ?').all(req.params.id);
+    for (const r of relatedReceivables) {
+      db.prepare('DELETE FROM receivable_recoveries WHERE receivable_id = ?').run(r.id);
+      db.prepare('DELETE FROM receivables WHERE id = ?').run(r.id);
+    }
+
     const att = db.prepare('SELECT * FROM sale_attachments WHERE sale_id = ?').all(req.params.id);
     for (const a of att) {
       if (a.path) {

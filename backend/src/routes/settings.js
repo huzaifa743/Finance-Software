@@ -95,6 +95,25 @@ const RESTORE_INSERT_ORDER = [
   'activity_logs', 'login_history'
 ];
 
+// Tables to clear when wiping transactional data (keep master data like users, branches, banks, products)
+const CLEAR_DATA_DELETE_ORDER = [
+  'login_history',
+  'activity_logs',
+  'sale_attachments',
+  'sale_bank_splits',
+  'receivable_recoveries',
+  'bank_transactions',
+  'salary_records',
+  'payments',
+  'rent_bill_attachments',
+  'rent_bills',
+  'purchase_attachments',
+  'purchases',
+  'receivables',
+  'inventory_sales',
+  'sales'
+];
+
 router.post('/restore', authenticate, requireRole('Super Admin', 'Finance Manager'), logActivity('restore', 'settings', req => 'backup'), async (req, res) => {
   try {
     const backup = req.body;
@@ -128,6 +147,36 @@ router.post('/restore', authenticate, requireRole('Super Admin', 'Finance Manage
     res.status(500).json({ error: e.message });
   }
 });
+
+// Clear all transactional data (Super Admin only). Keeps master/setup tables and users.
+router.post(
+  '/clear-data',
+  authenticate,
+  requireRole('Super Admin'),
+  logActivity('clear_data', 'settings', () => 'all'),
+  (req, res) => {
+    try {
+      db.pragma('foreign_keys = OFF');
+      try {
+        for (const t of CLEAR_DATA_DELETE_ORDER) {
+          try {
+            db.prepare(`DELETE FROM ${t}`).run();
+          } catch (e) {
+            // ignore missing tables
+          }
+        }
+      } finally {
+        db.pragma('foreign_keys = ON');
+      }
+      res.json({
+        ok: true,
+        message: 'All transactional data has been cleared. Master data (branches, banks, products, suppliers, settings, users) is kept.'
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  }
+);
 
 router.get('/:key', authenticate, (req, res) => {
   const row = db.prepare('SELECT value FROM system_settings WHERE key = ?').get(req.params.key);

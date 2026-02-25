@@ -32,7 +32,6 @@ const nav = [
   { path: '/inventory', label: 'Inventory', icon: Boxes },
   { path: '/sales', label: 'Sales', icon: ShoppingCart },
   { path: '/receivables', label: 'Receivables', icon: Receipt },
-  { path: '/customers', label: 'Customers', icon: UserCircle },
   { path: '/purchases', label: 'Purchases', icon: Truck },
   { path: '/rent-bills', label: 'Rent & Bills', icon: FileText },
   { path: '/payments', label: 'Payments', icon: CreditCard },
