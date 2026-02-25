@@ -329,7 +329,7 @@ router.delete('/:id/attachments/:attId', authenticate, requireNotAuditor, logAct
 
 router.post('/', authenticate, requireNotAuditor, logActivity('create', 'purchases', req => req.body?.invoice_no || ''), (req, res) => {
   try {
-    const { supplier_id, branch_id, invoice_no, purchase_date, due_date, total_amount, paid_amount, remarks } = req.body;
+    const { supplier_id, branch_id, invoice_no, purchase_date, due_date, total_amount, paid_amount, remarks, payment_method } = req.body;
     let inv = invoice_no || null;
     if (!inv) {
       const prefix = db.prepare('SELECT value FROM system_settings WHERE key = ?').get('invoice_prefix')?.value || 'INV';
@@ -346,7 +346,39 @@ router.post('/', authenticate, requireNotAuditor, logActivity('create', 'purchas
       INSERT INTO purchases (supplier_id, branch_id, invoice_no, purchase_date, due_date, total_amount, paid_amount, balance, remarks)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(supplier_id, branch_id || null, inv, purchase_date, due_date || null, total, paid, balance, remarks || null);
-    res.status(201).json({ id: r.lastInsertRowid, invoice_no: inv, total_amount: total, balance });
+
+    const purchaseId = r.lastInsertRowid;
+
+    if (paid > 0 && supplier_id) {
+      const voucher = getNextVoucherNumber();
+      const voucherRemarks = appendVoucherNote(remarks, voucher);
+      const paymentDate = purchase_date || new Date().toISOString().slice(0, 10);
+      const isBank = payment_method && payment_method !== 'cash';
+      const mode = isBank ? 'bank' : 'cash';
+      const bankId = isBank ? parseInt(payment_method, 10) : null;
+
+      if (mode === 'bank' && bankId) {
+        const bank = db.prepare('SELECT id FROM banks WHERE id = ?').get(bankId);
+        if (!bank) return res.status(400).json({ error: 'Bank not found.' });
+        db.prepare(`
+          INSERT INTO bank_transactions (bank_id, type, amount, transaction_date, reference, description)
+          VALUES (?, 'payment', ?, ?, ?, ?)
+        `).run(
+          bankId,
+          paid,
+          paymentDate,
+          voucherRemarks || voucher,
+          `Purchase payment #${purchaseId}`
+        );
+      }
+
+      db.prepare(`
+        INSERT INTO payments (type, reference_id, reference_type, amount, payment_date, mode, bank_id, remarks)
+        VALUES ('supplier', ?, 'supplier', ?, ?, ?, ?, ?)
+      `).run(supplier_id, paid, paymentDate, mode, bankId, voucherRemarks || null);
+    }
+
+    res.status(201).json({ id: purchaseId, invoice_no: inv, total_amount: total, balance });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

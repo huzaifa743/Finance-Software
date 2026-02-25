@@ -12,7 +12,7 @@ export default function Purchases() {
   const [modal, setModal] = useState(null);
   const [payModal, setPayModal] = useState(null);
   const [filters, setFilters] = useState({ supplier_id: '', branch_id: '', from: '', to: '' });
-  const [form, setForm] = useState({ supplier_id: '', branch_id: '', invoice_no: '', purchase_date: '', due_date: '', total_amount: '', paid_amount: 0, remarks: '' });
+  const [form, setForm] = useState({ supplier_id: '', branch_id: '', invoice_no: '', purchase_date: '', due_date: '', total_amount: '', paid_amount: 0, remarks: '', payment_method: 'cash' });
   const [payForm, setPayForm] = useState({ purchase_id: '', supplier_id: '', amount: '', payment_date: '', payment_method: 'cash' });
   const [attachmentsModal, setAttachmentsModal] = useState(null);
   const [attachments, setAttachments] = useState([]);
@@ -42,12 +42,33 @@ export default function Purchases() {
   useEffect(() => { setLoading(false); }, [list]);
 
   const openAdd = () => {
-    setForm({ supplier_id: suppliers[0]?.id || '', branch_id: '', invoice_no: '', purchase_date: new Date().toISOString().slice(0, 10), due_date: '', total_amount: '', paid_amount: 0, remarks: '' });
+    setForm({
+      supplier_id: suppliers[0]?.id || '',
+      branch_id: '',
+      invoice_no: '',
+      purchase_date: new Date().toISOString().slice(0, 10),
+      due_date: '',
+      total_amount: '',
+      paid_amount: 0,
+      remarks: '',
+      payment_method: 'cash',
+    });
     setModal('add');
   };
 
   const openEdit = (p) => {
-    setForm({ id: p.id, supplier_id: p.supplier_id, branch_id: p.branch_id, invoice_no: p.invoice_no || '', purchase_date: p.purchase_date, due_date: p.due_date || '', total_amount: p.total_amount, paid_amount: p.paid_amount ?? 0, remarks: p.remarks || '' });
+    setForm({
+      id: p.id,
+      supplier_id: p.supplier_id,
+      branch_id: p.branch_id,
+      invoice_no: p.invoice_no || '',
+      purchase_date: p.purchase_date,
+      due_date: p.due_date || '',
+      total_amount: p.total_amount,
+      paid_amount: p.paid_amount ?? 0,
+      remarks: p.remarks || '',
+      payment_method: 'cash',
+    });
     setModal('edit');
   };
 
@@ -284,9 +305,46 @@ export default function Purchases() {
               </div>
               <div><label className="label">Due Date</label><input type="date" className="input" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="label">Total *</label><input type="number" step="0.01" className="input" value={form.total_amount} onChange={(e) => setForm({ ...form, total_amount: e.target.value })} required /></div>
-                <div><label className="label">Paid</label><input type="number" step="0.01" className="input" value={form.paid_amount} onChange={(e) => setForm({ ...form, paid_amount: e.target.value })} /></div>
+                <div>
+                  <label className="label">Total *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input"
+                    value={form.total_amount}
+                    onChange={(e) => setForm({ ...form, total_amount: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="label">Paid</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input"
+                    value={form.paid_amount}
+                    onChange={(e) => setForm({ ...form, paid_amount: e.target.value })}
+                  />
+                </div>
               </div>
+              {modal === 'add' && (
+                <div>
+                  <label className="label">Payment method (for paid amount)</label>
+                  <select
+                    className="input"
+                    value={form.payment_method}
+                    onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
+                  >
+                    <option value="cash">Cash</option>
+                    {banks.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                        {b.account_number ? ` (${b.account_number})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div><label className="label">Remarks</label><input className="input" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} /></div>
               <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Save</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button></div>
             </form>

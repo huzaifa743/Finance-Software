@@ -36,7 +36,6 @@ const nav = [
   { path: '/rent-bills', label: 'Rent & Bills', icon: FileText },
   { path: '/payments', label: 'Payments', icon: CreditCard },
   { path: '/staff', label: 'Staff & Salary', icon: Users },
-  { path: '/pl', label: 'Profit & Loss', icon: TrendingUp },
   { path: '/reports', label: 'Reports & Analytics', icon: BarChart3 },
   { path: '/users', label: 'Users & Roles', icon: Shield },
   { path: '/settings', label: 'Settings', icon: Settings },

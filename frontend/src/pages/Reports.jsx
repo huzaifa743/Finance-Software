@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { FileDown, BarChart3, DollarSign, Wallet, Truck } from 'lucide-react';
+import { FileDown, BarChart3, DollarSign, Wallet, Truck, TrendingUp } from 'lucide-react';
 
 export default function Reports() {
   const [module, setModule] = useState('sales');
@@ -68,6 +68,11 @@ export default function Reports() {
         .then(setData)
         .catch((e) => setErr(e.message))
         .finally(run);
+    } else if (module === 'pl') {
+      // For P&L, we keep the date range and branch filters but delegate to a dedicated page.
+      // Here we simply navigate the user to the P&L screen via hash, or you can later refactor into an inline view.
+      window.location.hash = '#/pl';
+      run();
     } else run();
   };
 
@@ -122,7 +127,7 @@ export default function Reports() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Reports & Analytics</h1>
-          <p className="text-slate-500 mt-1">Daily, monthly, date-range; PDF / Excel export</p>
+          <p className="text-slate-500 mt-1">Profit & Loss, sales, purchases, inventory, combined reports</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => exportData('xlsx')} className="btn-secondary">
@@ -147,6 +152,7 @@ export default function Reports() {
               if (next === 'inventory') setType('range');
               if (next === 'daily_combined') setType('daily');
               if (next === 'branch_ledger') setType('range');
+              if (next === 'pl') setType('range');
               setInventorySummary([]);
             }}>
               <option value="sales">Sales</option>
@@ -154,6 +160,7 @@ export default function Reports() {
               <option value="inventory">Inventory</option>
               <option value="daily_combined">Daily combined (Sales + Purchases)</option>
               <option value="branch_ledger">Branch-wise receivables ledger</option>
+              <option value="pl">Profit &amp; Loss</option>
             </select>
           </div>
           <div>
