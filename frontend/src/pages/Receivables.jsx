@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { Plus, AlertTriangle, FileText, X, Search } from 'lucide-react';
+import { Plus, AlertTriangle, FileText, X, Search, FileDown, Printer } from 'lucide-react';
+import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf } from '../utils/printHeader';
 
 export default function Receivables() {
   const [list, setList] = useState([]);
@@ -165,6 +166,176 @@ export default function Receivables() {
         return hay.includes(needle);
       })
     : list;
+
+  const exportBranchLedgerCsv = () => {
+    if (!branchLedgerModal || !branchLedgerData) return;
+    const entries = branchLedgerData.entries || [];
+    if (!entries.length) return;
+    const header = ['Date', 'Description', 'Credit', 'Debit', 'Balance'];
+    const rows = entries.map((e) => [
+      e.date || '',
+      e.description || '',
+      e.credit || 0,
+      e.debit || 0,
+      e.balance ?? 0,
+    ]);
+    const csvLines = [
+      header.join(','),
+      ...rows.map((r) => r.map((v) => JSON.stringify(v ?? '')).join(',')),
+    ];
+    const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `branch-receivables-ledger-${(branchLedgerModal?.branchName || branchLedgerModal?.branchId || 'branch')
+      .toString()
+      .replace(/\s+/g, '-')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadBranchLedgerPdf = async () => {
+    if (!branchLedgerModal || !branchLedgerData) return;
+    try {
+      const company = await getCompanyForPrint();
+      const headerHtml = buildPrintHeaderHtml(
+        company,
+        'Branch Receivables Ledger',
+        `Branch: ${branchLedgerModal.branchName || 'Branch'}`,
+        { forPdf: true }
+      );
+      const entries = branchLedgerData.entries || [];
+      const body = `
+        <p>Total due: ${fmt(branchLedgerData.totalDue ?? 0)} | Total recovered: ${fmt(
+        branchLedgerData.recoveredTotal ?? 0
+      )}</p>
+        <h2>Ledger (Credit / Debit / Balance)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th style="text-align:right;">Credit</th>
+              <th style="text-align:right;">Debit</th>
+              <th style="text-align:right;">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${entries
+              .map(
+                (e) => `
+              <tr>
+                <td>${e.date || '–'}</td>
+                <td>${e.description || '–'}</td>
+                <td style="text-align:right;">${e.credit ? fmt(e.credit) : '–'}</td>
+                <td style="text-align:right;">${e.debit ? fmt(e.debit) : '–'}</td>
+                <td style="text-align:right;">${fmt(e.balance ?? 0)}</td>
+              </tr>
+            `
+              )
+              .join('')}
+          </tbody>
+        </table>
+      `;
+      const fullHtml = `
+        <html>
+          <head>
+            <title>Branch Receivables Ledger - ${branchLedgerModal.branchName || 'Branch'}</title>
+            <style>
+              body { font-family: system-ui, sans-serif; padding: 16px; }
+              h1, h2 { margin: 12px 0 8px; }
+              table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+              th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
+              th { background: #f3f4f6; }
+            </style>
+          </head>
+          <body>
+            ${headerHtml}
+            ${body}
+          </body>
+        </html>
+      `;
+      await exportPrintAsPdf(
+        fullHtml,
+        `branch-receivables-ledger-${(branchLedgerModal.branchName || branchLedgerModal.branchId || 'branch')
+          .toString()
+          .replace(/\s+/g, '-')}.pdf`
+      );
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
+  const printBranchLedger = async () => {
+    if (!branchLedgerModal || !branchLedgerData) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    try {
+      const company = await getCompanyForPrint();
+      const headerHtml = buildPrintHeaderHtml(
+        company,
+        'Branch Receivables Ledger',
+        `Branch: ${branchLedgerModal.branchName || 'Branch'}`
+      );
+      const entries = branchLedgerData.entries || [];
+      const body = `
+        <p>Total due: ${fmt(branchLedgerData.totalDue ?? 0)} | Total recovered: ${fmt(
+        branchLedgerData.recoveredTotal ?? 0
+      )}</p>
+        <h2>Ledger (Credit / Debit / Balance)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th style="text-align:right;">Credit</th>
+              <th style="text-align:right;">Debit</th>
+              <th style="text-align:right;">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${entries
+              .map(
+                (e) => `
+              <tr>
+                <td>${e.date || '–'}</td>
+                <td>${e.description || '–'}</td>
+                <td style="text-align:right;">${e.credit ? fmt(e.credit) : '–'}</td>
+                <td style="text-align:right;">${e.debit ? fmt(e.debit) : '–'}</td>
+                <td style="text-align:right;">${fmt(e.balance ?? 0)}</td>
+              </tr>
+            `
+              )
+              .join('')}
+          </tbody>
+        </table>
+      `;
+      const html = `
+        <html>
+          <head>
+            <title>Branch Receivables Ledger - ${branchLedgerModal.branchName || 'Branch'}</title>
+            <style>
+              body { font-family: system-ui, sans-serif; padding: 16px; }
+              h1, h2 { margin: 12px 0 8px; }
+              table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+              th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
+              th { background: #f3f4f6; }
+            </style>
+          </head>
+          <body>
+            ${headerHtml}
+            ${body}
+          </body>
+        </html>
+      `;
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    } catch (e) {
+      win.close();
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -341,18 +512,49 @@ export default function Receivables() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-5xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold text-slate-900">
-                Branch Receivables Ledger — {branchLedgerModal.branchName || 'Branch'}
-              </h2>
-              <button
-                onClick={() => {
-                  setBranchLedgerModal(null);
-                  setBranchLedgerData(null);
-                }}
-                className="btn-secondary text-xs inline-flex items-center gap-1"
-              >
-                <X className="w-4 h-4" /> Close
-              </button>
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Branch Receivables Ledger — {branchLedgerModal.branchName || 'Branch'}
+                </h2>
+                {branchLedgerData && (
+                  <p className="text-sm text-slate-600 mt-1">
+                    Total due: {fmt(branchLedgerData.totalDue ?? 0)} • Total recovered:{' '}
+                    {fmt(branchLedgerData.recoveredTotal ?? 0)}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={downloadBranchLedgerPdf}
+                  className="btn-secondary text-xs inline-flex items-center gap-1"
+                >
+                  <FileDown className="w-3 h-3" /> PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={exportBranchLedgerCsv}
+                  className="btn-secondary text-xs inline-flex items-center gap-1"
+                >
+                  <FileDown className="w-3 h-3" /> Excel/CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={printBranchLedger}
+                  className="btn-secondary text-xs inline-flex items-center gap-1"
+                >
+                  <Printer className="w-3 h-3" /> Print
+                </button>
+                <button
+                  onClick={() => {
+                    setBranchLedgerModal(null);
+                    setBranchLedgerData(null);
+                  }}
+                  className="btn-secondary text-xs inline-flex items-center gap-1"
+                >
+                  <X className="w-4 h-4" /> Close
+                </button>
+              </div>
             </div>
             <div className="mt-4">
               {branchLedgerLoading && <p className="text-slate-500">Loading branch ledger…</p>}
