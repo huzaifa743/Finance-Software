@@ -392,10 +392,30 @@ router.post('/:id/pay', authenticate, requireNotAuditor, logActivity('payment', 
     db.prepare('UPDATE purchases SET paid_amount = ?, balance = ? WHERE id = ?').run(newPaid, balance, p.id);
     const voucher = getNextVoucherNumber();
     const voucherRemarks = appendVoucherNote(req.body.remarks, voucher);
+
+    const paymentDate = req.body.payment_date || new Date().toISOString().slice(0, 10);
+    const mode = req.body.mode || 'cash';
+    const bankId = req.body.bank_id || null;
+
+    if (mode === 'bank' && bankId) {
+      const bank = db.prepare('SELECT id FROM banks WHERE id = ?').get(bankId);
+      if (!bank) return res.status(400).json({ error: 'Bank not found.' });
+      db.prepare(`
+        INSERT INTO bank_transactions (bank_id, type, amount, transaction_date, reference, description)
+        VALUES (?, 'payment', ?, ?, ?, ?)
+      `).run(
+        bankId,
+        amt,
+        paymentDate,
+        voucherRemarks || voucher,
+        `Purchase payment #${p.id}`
+      );
+    }
+
     db.prepare(`
       INSERT INTO payments (type, reference_id, reference_type, amount, payment_date, mode, bank_id, remarks)
       VALUES ('supplier', ?, 'supplier', ?, ?, ?, ?, ?)
-    `).run(p.supplier_id, amt, req.body.payment_date || new Date().toISOString().slice(0, 10), req.body.mode || 'cash', req.body.bank_id || null, voucherRemarks || null);
+    `).run(p.supplier_id, amt, paymentDate, mode, bankId, voucherRemarks || null);
     res.json({ ok: true, paid_amount: newPaid, balance });
   } catch (e) {
     res.status(500).json({ error: e.message });

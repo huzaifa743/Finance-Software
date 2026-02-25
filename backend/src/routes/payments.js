@@ -113,6 +113,25 @@ router.post('/', authenticate, requireNotAuditor, logActivity('payment', 'paymen
         reference_id, amt, voucherRemarks || null
       );
       db.prepare('UPDATE receivables SET amount = ?, status = ? WHERE id = ?').run(Math.max(0, remaining), newStatus, reference_id);
+    } else if (category === 'supplier') {
+      // Allocate supplier payment across open purchases (FIFO by date)
+      let remaining = amt;
+      const purchases = db.prepare(`
+        SELECT * FROM purchases
+        WHERE supplier_id = ? AND balance > 0
+        ORDER BY purchase_date ASC, id ASC
+      `).all(reference_id);
+      const updateStmt = db.prepare('UPDATE purchases SET paid_amount = ?, balance = ? WHERE id = ?');
+      for (const p of purchases) {
+        if (remaining <= 0) break;
+        const currentBalance = parseFloat(p.balance) || 0;
+        if (currentBalance <= 0) continue;
+        const apply = Math.min(remaining, currentBalance);
+        const newPaid = (parseFloat(p.paid_amount) || 0) + apply;
+        const newBalance = Math.max(0, currentBalance - apply);
+        updateStmt.run(newPaid, newBalance, p.id);
+        remaining -= apply;
+      }
     }
 
     if (isBank && bankId) {

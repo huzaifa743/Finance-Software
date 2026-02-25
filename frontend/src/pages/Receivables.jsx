@@ -151,6 +151,9 @@ export default function Receivables() {
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const normalize = (v) => String(v || '').toLowerCase();
   const needle = query.trim().toLowerCase();
+  const selectedBranchSummary = form.branch_id
+    ? (branchLedger || []).find((r) => String(r.branch_id) === String(form.branch_id))
+    : null;
   const filteredList = needle
     ? list.filter((r) => {
         const hay = [
@@ -272,7 +275,30 @@ export default function Receivables() {
           <div className="card w-full max-w-lg p-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">Add Receivable</h2>
             <form onSubmit={save} className="space-y-4">
-              <div><label className="label">Branch *</label><select className="input" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })} required><option value="">–</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+              <div>
+                <label className="label">Branch *</label>
+                <select
+                  className="input"
+                  value={form.branch_id}
+                  onChange={(e) => setForm({ ...form, branch_id: e.target.value })}
+                  required
+                >
+                  <option value="">–</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+                {selectedBranchSummary && (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Current pending balance for this branch:{' '}
+                    <span className="font-semibold">
+                      {fmt(selectedBranchSummary.pending_balance)}
+                    </span>
+                  </p>
+                )}
+              </div>
               <div><label className="label">Amount *</label><input type="number" step="0.01" className="input" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required /></div>
               <div><label className="label">Due Date</label><input type="date" className="input" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /></div>
               <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Save</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button></div>

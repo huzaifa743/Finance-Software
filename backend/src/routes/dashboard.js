@@ -64,6 +64,11 @@ router.get('/', authenticate, (req, res) => {
   const payables = db.prepare(`
     SELECT COALESCE(SUM(balance), 0) as t FROM purchases WHERE balance > 0
   `).get();
+  const receivableRecoveredTotal = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) as t
+    FROM payments
+    WHERE type = 'receivable_recovery'
+  `).get();
 
   const branchSales = db.prepare(`
     SELECT b.id, b.name, COALESCE(SUM(s.net_sales), 0) as total
@@ -108,6 +113,7 @@ router.get('/', authenticate, (req, res) => {
       receivables: parseFloat(receivables?.t) || 0,
       payables: parseFloat(payables?.t) || 0,
       cashInHand,
+      receivableRecovered: parseFloat(receivableRecoveredTotal?.t) || 0,
     },
     bankAccounts: bankListWithBalance(),
     branchComparison: branchSales,

@@ -13,11 +13,12 @@ export default function Purchases() {
   const [payModal, setPayModal] = useState(null);
   const [filters, setFilters] = useState({ supplier_id: '', branch_id: '', from: '', to: '' });
   const [form, setForm] = useState({ supplier_id: '', branch_id: '', invoice_no: '', purchase_date: '', due_date: '', total_amount: '', paid_amount: 0, remarks: '' });
-  const [payForm, setPayForm] = useState({ purchase_id: '', supplier_id: '', amount: '', payment_date: '', mode: 'cash' });
+  const [payForm, setPayForm] = useState({ purchase_id: '', supplier_id: '', amount: '', payment_date: '', payment_method: 'cash' });
   const [attachmentsModal, setAttachmentsModal] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [query, setQuery] = useState('');
+  const [banks, setBanks] = useState([]);
 
   const load = () => {
     const q = new URLSearchParams();
@@ -36,6 +37,7 @@ export default function Purchases() {
     loadSuppliers();
     api.get('/branches?active=1').then(setBranches).catch(() => {});
     loadReminders();
+    api.get('/banks').then(setBanks).catch(() => {});
   }, []);
   useEffect(() => { setLoading(false); }, [list]);
 
@@ -50,7 +52,13 @@ export default function Purchases() {
   };
 
   const openPay = (p) => {
-    setPayForm({ purchase_id: p.id, supplier_id: p.supplier_id, amount: Math.max(0, (Number(p.balance) || 0)), payment_date: new Date().toISOString().slice(0, 10), mode: 'cash' });
+    setPayForm({
+      purchase_id: p.id,
+      supplier_id: p.supplier_id,
+      amount: Math.max(0, (Number(p.balance) || 0)),
+      payment_date: new Date().toISOString().slice(0, 10),
+      payment_method: 'cash',
+    });
     setPayModal(p);
   };
 
@@ -72,7 +80,13 @@ export default function Purchases() {
     e.preventDefault();
     setErr('');
     try {
-      await api.post(`/purchases/${payForm.purchase_id}/pay`, { amount: payForm.amount, payment_date: payForm.payment_date, mode: payForm.mode });
+      const isBank = payForm.payment_method !== 'cash' && payForm.payment_method !== '' && payForm.payment_method != null;
+      await api.post(`/purchases/${payForm.purchase_id}/pay`, {
+        amount: payForm.amount,
+        payment_date: payForm.payment_date,
+        mode: isBank ? 'bank' : 'cash',
+        bank_id: isBank ? payForm.payment_method : null,
+      });
       setPayModal(null);
       load();
       loadReminders();
@@ -287,7 +301,21 @@ export default function Purchases() {
             <form onSubmit={pay} className="space-y-4">
               <div><label className="label">Amount *</label><input type="number" step="0.01" className="input" value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} required /></div>
               <div><label className="label">Date *</label><input type="date" className="input" value={payForm.payment_date} onChange={(e) => setPayForm({ ...payForm, payment_date: e.target.value })} required /></div>
-              <div><label className="label">Mode</label><select className="input" value={payForm.mode} onChange={(e) => setPayForm({ ...payForm, mode: e.target.value })}><option value="cash">Cash</option><option value="bank">Bank</option></select></div>
+              <div>
+                <label className="label">Payment method</label>
+                <select
+                  className="input"
+                  value={payForm.payment_method}
+                  onChange={(e) => setPayForm({ ...payForm, payment_method: e.target.value })}
+                >
+                  <option value="cash">Cash</option>
+                  {banks.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}{b.account_number ? ` (${b.account_number})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Pay</button><button type="button" onClick={() => setPayModal(null)} className="btn-secondary">Cancel</button></div>
             </form>
           </div>

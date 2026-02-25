@@ -24,6 +24,7 @@ export default function Dashboard() {
     { label: 'Bank Sales Today', value: widgets.salesTodayBank, icon: Landmark, color: 'bg-blue-500' },
     { label: 'Sales Today on Credit', value: widgets.salesTodayCredit, icon: Receipt, color: 'bg-amber-500' },
     { label: 'Sales on Credit (Receivable)', value: widgets.salesOnCredit, icon: Receipt, color: 'bg-violet-500' },
+    { label: 'Receivable Recoveries (Total)', value: widgets.receivableRecovered, icon: Receipt, color: 'bg-emerald-700' },
     { label: 'Sales (Month)', value: widgets.salesMonth, icon: TrendingUp, color: 'bg-accent-500' },
     { label: 'Cash Sales (Month)', value: widgets.salesMonthCash, icon: WalletCards, color: 'bg-emerald-500' },
     { label: 'Bank Sales (Month)', value: widgets.salesMonthBank, icon: Landmark, color: 'bg-blue-500' },
