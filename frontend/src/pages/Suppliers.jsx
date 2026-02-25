@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, BookOpen, Search, Trash2, FileDown, Printer, DollarSign } from 'lucide-react';
-import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf } from '../utils/printHeader';
+import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 
 export default function Suppliers() {
   const [list, setList] = useState([]);
@@ -140,21 +140,8 @@ export default function Suppliers() {
         const headerHtml = buildPrintHeaderHtml(company, 'Supplier Ledger', ledgerSupplier.name, { forPdf: true });
         const rowsPurch = filteredPurchases;
         const rowsPay = filteredPayments;
-        const fullHtml = `
-      <html>
-        <head>
-          <title>Supplier Ledger - ${ledgerSupplier.name}</title>
-          <style>
-            body { font-family: system-ui, sans-serif; padding: 16px; }
-            h1, h2 { margin: 0 0 8px; }
-            table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-            th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
-            th { background: #f3f4f6; }
-          </style>
-        </head>
-        <body>
-          ${headerHtml}
-          <p>Total purchases: ${fmt(ledger.totalPurchases)} | Total paid: ${fmt(ledger.totalPaid)} | Balance: ${fmt(ledger.balance)}</p>
+        const body = `
+          <p class="summary-line">Total purchases: <strong>${fmt(ledger.totalPurchases)}</strong> &nbsp;|&nbsp; Total paid: <strong>${fmt(ledger.totalPaid)}</strong> &nbsp;|&nbsp; Balance: <strong>${fmt(ledger.balance)}</strong></p>
           <h2>Purchases</h2>
           <table>
             <thead>
@@ -162,9 +149,9 @@ export default function Suppliers() {
                 <th>Date</th>
                 <th>Branch</th>
                 <th>Invoice</th>
-                <th>Total</th>
-                <th>Paid</th>
-                <th>Balance</th>
+                <th class="text-right">Total</th>
+                <th class="text-right">Paid</th>
+                <th class="text-right">Balance</th>
               </tr>
             </thead>
             <tbody>
@@ -173,9 +160,9 @@ export default function Suppliers() {
                   <td>${p.purchase_date}</td>
                   <td>${p.branch_name || '–'}</td>
                   <td>${p.invoice_no || '–'}</td>
-                  <td style="text-align:right;">${fmt(p.total_amount)}</td>
-                  <td style="text-align:right;">${fmt(p.paid_amount)}</td>
-                  <td style="text-align:right;">${fmt(p.balance)}</td>
+                  <td class="text-right font-mono">${fmt(p.total_amount)}</td>
+                  <td class="text-right font-mono">${fmt(p.paid_amount)}</td>
+                  <td class="text-right font-mono">${fmt(p.balance)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -186,7 +173,7 @@ export default function Suppliers() {
               <tr>
                 <th>Payment Date</th>
                 <th>Mode</th>
-                <th>Amount</th>
+                <th class="text-right">Amount</th>
                 <th>Remarks</th>
               </tr>
             </thead>
@@ -195,15 +182,14 @@ export default function Suppliers() {
                 <tr>
                   <td>${p.payment_date}</td>
                   <td>${p.mode}</td>
-                  <td style="text-align:right;">${fmt(p.amount)}</td>
+                  <td class="text-right font-mono">${fmt(p.amount)}</td>
                   <td>${p.remarks || '–'}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
-        </body>
-      </html>
-    `;
+        `;
+        const fullHtml = buildPrintDocumentHtml(headerHtml, body, `Supplier Ledger - ${ledgerSupplier.name}`);
         await exportPrintAsPdf(fullHtml, `supplier-ledger-${ledgerSupplier.name || ledgerSupplier.id}.pdf`);
         return;
       }
@@ -237,21 +223,8 @@ export default function Suppliers() {
       const headerHtml = buildPrintHeaderHtml(company, 'Supplier Ledger', ledgerSupplier.name);
       const rowsPurch = filteredPurchases;
       const rowsPay = filteredPayments;
-      const html = `
-      <html>
-        <head>
-          <title>Supplier Ledger - ${ledgerSupplier.name}</title>
-          <style>
-            body { font-family: system-ui, sans-serif; padding: 16px; }
-            h1, h2 { margin: 0 0 8px; }
-            table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-            th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
-            th { background: #f3f4f6; }
-          </style>
-        </head>
-        <body>
-          ${headerHtml}
-          <p>Total purchases: ${fmt(ledger.totalPurchases)} | Total paid: ${fmt(ledger.totalPaid)} | Balance: ${fmt(ledger.balance)}</p>
+      const body = `
+          <p class="summary-line">Total purchases: <strong>${fmt(ledger.totalPurchases)}</strong> &nbsp;|&nbsp; Total paid: <strong>${fmt(ledger.totalPaid)}</strong> &nbsp;|&nbsp; Balance: <strong>${fmt(ledger.balance)}</strong></p>
           <h2>Purchases</h2>
           <table>
             <thead>
@@ -259,9 +232,9 @@ export default function Suppliers() {
                 <th>Date</th>
                 <th>Branch</th>
                 <th>Invoice</th>
-                <th>Total</th>
-                <th>Paid</th>
-                <th>Balance</th>
+                <th class="text-right">Total</th>
+                <th class="text-right">Paid</th>
+                <th class="text-right">Balance</th>
               </tr>
             </thead>
             <tbody>
@@ -270,9 +243,9 @@ export default function Suppliers() {
                   <td>${p.purchase_date}</td>
                   <td>${p.branch_name || '–'}</td>
                   <td>${p.invoice_no || '–'}</td>
-                  <td style="text-align:right;">${fmt(p.total_amount)}</td>
-                  <td style="text-align:right;">${fmt(p.paid_amount)}</td>
-                  <td style="text-align:right;">${fmt(p.balance)}</td>
+                  <td class="text-right font-mono">${fmt(p.total_amount)}</td>
+                  <td class="text-right font-mono">${fmt(p.paid_amount)}</td>
+                  <td class="text-right font-mono">${fmt(p.balance)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -283,7 +256,7 @@ export default function Suppliers() {
               <tr>
                 <th>Payment Date</th>
                 <th>Mode</th>
-                <th>Amount</th>
+                <th class="text-right">Amount</th>
                 <th>Remarks</th>
               </tr>
             </thead>
@@ -292,15 +265,14 @@ export default function Suppliers() {
                 <tr>
                   <td>${p.payment_date}</td>
                   <td>${p.mode}</td>
-                  <td style="text-align:right;">${fmt(p.amount)}</td>
+                  <td class="text-right font-mono">${fmt(p.amount)}</td>
                   <td>${p.remarks || '–'}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
-        </body>
-      </html>
-    `;
+        `;
+      const html = buildPrintDocumentHtml(headerHtml, body, `Supplier Ledger - ${ledgerSupplier.name}`);
       win.document.write(html);
       win.document.close();
       win.focus();

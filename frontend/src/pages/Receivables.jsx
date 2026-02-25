@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, AlertTriangle, FileText, X, Search, FileDown, Printer } from 'lucide-react';
-import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf } from '../utils/printHeader';
+import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 
 export default function Receivables() {
   const [list, setList] = useState([]);
@@ -206,18 +206,18 @@ export default function Receivables() {
       );
       const entries = branchLedgerData.entries || [];
       const body = `
-        <p>Total due: ${fmt(branchLedgerData.totalDue ?? 0)} | Total recovered: ${fmt(
+        <p class="summary-line">Total due: <strong>${fmt(branchLedgerData.totalDue ?? 0)}</strong> &nbsp;|&nbsp; Total recovered: <strong>${fmt(
         branchLedgerData.recoveredTotal ?? 0
-      )}</p>
+      )}</strong></p>
         <h2>Ledger (Credit / Debit / Balance)</h2>
         <table>
           <thead>
             <tr>
               <th>Date</th>
               <th>Description</th>
-              <th style="text-align:right;">Credit</th>
-              <th style="text-align:right;">Debit</th>
-              <th style="text-align:right;">Balance</th>
+              <th class="text-right">Credit</th>
+              <th class="text-right">Debit</th>
+              <th class="text-right">Balance</th>
             </tr>
           </thead>
           <tbody>
@@ -227,9 +227,9 @@ export default function Receivables() {
               <tr>
                 <td>${e.date || '–'}</td>
                 <td>${e.description || '–'}</td>
-                <td style="text-align:right;">${e.credit ? fmt(e.credit) : '–'}</td>
-                <td style="text-align:right;">${e.debit ? fmt(e.debit) : '–'}</td>
-                <td style="text-align:right;">${fmt(e.balance ?? 0)}</td>
+                <td class="text-right font-mono">${e.credit ? fmt(e.credit) : '–'}</td>
+                <td class="text-right font-mono">${e.debit ? fmt(e.debit) : '–'}</td>
+                <td class="text-right font-mono">${fmt(e.balance ?? 0)}</td>
               </tr>
             `
               )
@@ -237,24 +237,7 @@ export default function Receivables() {
           </tbody>
         </table>
       `;
-      const fullHtml = `
-        <html>
-          <head>
-            <title>Branch Receivables Ledger - ${branchLedgerModal.branchName || 'Branch'}</title>
-            <style>
-              body { font-family: system-ui, sans-serif; padding: 16px; }
-              h1, h2 { margin: 12px 0 8px; }
-              table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-              th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
-              th { background: #f3f4f6; }
-            </style>
-          </head>
-          <body>
-            ${headerHtml}
-            ${body}
-          </body>
-        </html>
-      `;
+      const fullHtml = buildPrintDocumentHtml(headerHtml, body, `Branch Receivables Ledger - ${branchLedgerModal.branchName || 'Branch'}`);
       await exportPrintAsPdf(
         fullHtml,
         `branch-receivables-ledger-${(branchLedgerModal.branchName || branchLedgerModal.branchId || 'branch')
@@ -279,18 +262,18 @@ export default function Receivables() {
       );
       const entries = branchLedgerData.entries || [];
       const body = `
-        <p>Total due: ${fmt(branchLedgerData.totalDue ?? 0)} | Total recovered: ${fmt(
+        <p class="summary-line">Total due: <strong>${fmt(branchLedgerData.totalDue ?? 0)}</strong> &nbsp;|&nbsp; Total recovered: <strong>${fmt(
         branchLedgerData.recoveredTotal ?? 0
-      )}</p>
+      )}</strong></p>
         <h2>Ledger (Credit / Debit / Balance)</h2>
         <table>
           <thead>
             <tr>
               <th>Date</th>
               <th>Description</th>
-              <th style="text-align:right;">Credit</th>
-              <th style="text-align:right;">Debit</th>
-              <th style="text-align:right;">Balance</th>
+              <th class="text-right">Credit</th>
+              <th class="text-right">Debit</th>
+              <th class="text-right">Balance</th>
             </tr>
           </thead>
           <tbody>
@@ -300,9 +283,9 @@ export default function Receivables() {
               <tr>
                 <td>${e.date || '–'}</td>
                 <td>${e.description || '–'}</td>
-                <td style="text-align:right;">${e.credit ? fmt(e.credit) : '–'}</td>
-                <td style="text-align:right;">${e.debit ? fmt(e.debit) : '–'}</td>
-                <td style="text-align:right;">${fmt(e.balance ?? 0)}</td>
+                <td class="text-right font-mono">${e.credit ? fmt(e.credit) : '–'}</td>
+                <td class="text-right font-mono">${e.debit ? fmt(e.debit) : '–'}</td>
+                <td class="text-right font-mono">${fmt(e.balance ?? 0)}</td>
               </tr>
             `
               )
@@ -310,24 +293,7 @@ export default function Receivables() {
           </tbody>
         </table>
       `;
-      const html = `
-        <html>
-          <head>
-            <title>Branch Receivables Ledger - ${branchLedgerModal.branchName || 'Branch'}</title>
-            <style>
-              body { font-family: system-ui, sans-serif; padding: 16px; }
-              h1, h2 { margin: 12px 0 8px; }
-              table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-              th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
-              th { background: #f3f4f6; }
-            </style>
-          </head>
-          <body>
-            ${headerHtml}
-            ${body}
-          </body>
-        </html>
-      `;
+      const html = buildPrintDocumentHtml(headerHtml, body, `Branch Receivables Ledger - ${branchLedgerModal.branchName || 'Branch'}`);
       win.document.write(html);
       win.document.close();
       win.focus();

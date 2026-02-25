@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, Trash2, Paperclip, BookOpen, FileDown, Printer } from 'lucide-react';
-import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf } from '../utils/printHeader';
+import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 
 export default function RentBills() {
   const [list, setList] = useState([]);
@@ -125,15 +125,15 @@ export default function RentBills() {
       const headerHtml = buildPrintHeaderHtml(company, 'Rent & Bills Ledger');
       const items = ledgerData.items || [];
       const body = `
-        <p>Total amount: ${fmt(ledgerData.totalAmount)} | Total paid: ${fmt(ledgerData.totalPaid)} | Balance: ${fmt(ledgerData.totalBalance)}</p>
+        <p class="summary-line">Total amount: <strong>${fmt(ledgerData.totalAmount)}</strong> &nbsp;|&nbsp; Total paid: <strong>${fmt(ledgerData.totalPaid)}</strong> &nbsp;|&nbsp; Balance: <strong>${fmt(ledgerData.totalBalance)}</strong></p>
         <table>
           <thead>
             <tr>
               <th>Title</th>
               <th>Category</th>
-              <th>Amount</th>
-              <th>Paid</th>
-              <th>Balance</th>
+              <th class="text-right">Amount</th>
+              <th class="text-right">Paid</th>
+              <th class="text-right">Balance</th>
               <th>Due Date</th>
               <th>Status</th>
             </tr>
@@ -143,9 +143,9 @@ export default function RentBills() {
               <tr>
                 <td>${item.bill.title || '–'}</td>
                 <td>${item.bill.category || 'bill'}</td>
-                <td style="text-align:right;">${fmt(item.totalAmount)}</td>
-                <td style="text-align:right;">${fmt(item.totalPaid)}</td>
-                <td style="text-align:right;">${fmt(item.balance)}</td>
+                <td class="text-right font-mono">${fmt(item.totalAmount)}</td>
+                <td class="text-right font-mono">${fmt(item.totalPaid)}</td>
+                <td class="text-right font-mono">${fmt(item.balance)}</td>
                 <td>${item.bill.due_date || '–'}</td>
                 <td>${item.bill.status || 'pending'}</td>
               </tr>
@@ -153,24 +153,7 @@ export default function RentBills() {
           </tbody>
         </table>
       `;
-      const html = `
-        <html>
-          <head>
-            <title>Rent & Bills Ledger</title>
-            <style>
-              body { font-family: system-ui, sans-serif; padding: 16px; }
-              h1, h2 { margin: 12px 0 8px; }
-              table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-              th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
-              th { background: #f3f4f6; }
-            </style>
-          </head>
-          <body>
-            ${headerHtml}
-            ${body}
-          </body>
-        </html>
-      `;
+      const html = buildPrintDocumentHtml(headerHtml, body, 'Rent & Bills Ledger');
       win.document.write(html);
       win.document.close();
       win.focus();
@@ -349,15 +332,15 @@ export default function RentBills() {
                       const headerHtml = buildPrintHeaderHtml(company, 'Rent & Bills Ledger', '', { forPdf: true });
                       const items = ledgerData.items || [];
                       const body = `
-        <p>Total amount: ${fmt(ledgerData.totalAmount)} | Total paid: ${fmt(ledgerData.totalPaid)} | Balance: ${fmt(ledgerData.totalBalance)}</p>
+        <p class="summary-line">Total amount: <strong>${fmt(ledgerData.totalAmount)}</strong> &nbsp;|&nbsp; Total paid: <strong>${fmt(ledgerData.totalPaid)}</strong> &nbsp;|&nbsp; Balance: <strong>${fmt(ledgerData.totalBalance)}</strong></p>
         <table>
           <thead>
             <tr>
               <th>Title</th>
               <th>Category</th>
-              <th>Amount</th>
-              <th>Paid</th>
-              <th>Balance</th>
+              <th class="text-right">Amount</th>
+              <th class="text-right">Paid</th>
+              <th class="text-right">Balance</th>
               <th>Due Date</th>
               <th>Status</th>
             </tr>
@@ -367,9 +350,9 @@ export default function RentBills() {
               <tr>
                 <td>${item.bill.title || '–'}</td>
                 <td>${item.bill.category || 'bill'}</td>
-                <td style="text-align:right;">${fmt(item.totalAmount)}</td>
-                <td style="text-align:right;">${fmt(item.totalPaid)}</td>
-                <td style="text-align:right;">${fmt(item.balance)}</td>
+                <td class="text-right font-mono">${fmt(item.totalAmount)}</td>
+                <td class="text-right font-mono">${fmt(item.totalPaid)}</td>
+                <td class="text-right font-mono">${fmt(item.balance)}</td>
                 <td>${item.bill.due_date || '–'}</td>
                 <td>${item.bill.status || 'pending'}</td>
               </tr>
@@ -377,24 +360,7 @@ export default function RentBills() {
           </tbody>
         </table>
       `;
-                      const fullHtml = `
-        <html>
-          <head>
-            <title>Rent & Bills Ledger</title>
-            <style>
-              body { font-family: system-ui, sans-serif; padding: 16px; }
-              h1, h2 { margin: 12px 0 8px; }
-              table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-              th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
-              th { background: #f3f4f6; }
-            </style>
-          </head>
-          <body>
-            ${headerHtml}
-            ${body}
-          </body>
-        </html>
-      `;
+                      const fullHtml = buildPrintDocumentHtml(headerHtml, body, 'Rent & Bills Ledger');
                       await exportPrintAsPdf(fullHtml, 'rent-bills-ledger.pdf');
                       return;
                     }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { FileDown, Printer, X } from 'lucide-react';
-import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf } from '../utils/printHeader';
+import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 
 export default function CustomerLedgerWindow() {
   const { customerId } = useParams();
@@ -30,44 +30,27 @@ export default function CustomerLedgerWindow() {
         const headerHtml = buildPrintHeaderHtml(company, 'Receivables Ledger', `Customer: ${ledgerData.customer?.name || 'Customer'}`, { forPdf: true });
         const customer = ledgerData.customer || {};
         const body = `
-        <p><strong>${customer.name || '–'}</strong></p>
-        ${customer.contact ? `<p>Contact: ${customer.contact}</p>` : ''}
-        ${customer.address ? `<p>Address: ${customer.address}</p>` : ''}
-        <p>Total due: ${fmt(ledgerData.totalDue)} | Total recovered: ${fmt(ledgerData.recoveredTotal)}</p>
+        <p class="summary-line"><strong>${customer.name || '–'}</strong></p>
+        ${customer.contact ? `<p class="summary-line">Contact: ${customer.contact}</p>` : ''}
+        ${customer.address ? `<p class="summary-line">Address: ${customer.address}</p>` : ''}
+        <p class="summary-line">Total due: <strong>${fmt(ledgerData.totalDue)}</strong> &nbsp;|&nbsp; Total recovered: <strong>${fmt(ledgerData.recoveredTotal)}</strong></p>
         <h2>Ledger (Credit / Debit / Balance)</h2>
         <table>
-          <thead><tr><th>Date</th><th>Description</th><th style="text-align:right;">Credit</th><th style="text-align:right;">Debit</th><th style="text-align:right;">Balance</th></tr></thead>
+          <thead><tr><th>Date</th><th>Description</th><th class="text-right">Credit</th><th class="text-right">Debit</th><th class="text-right">Balance</th></tr></thead>
           <tbody>
             ${(ledgerData.entries || []).map(e => `
               <tr>
                 <td>${e.date || '–'}</td>
                 <td>${e.description || '–'}</td>
-                <td style="text-align:right;">${e.credit ? fmt(e.credit) : '–'}</td>
-                <td style="text-align:right;">${e.debit ? fmt(e.debit) : '–'}</td>
-                <td style="text-align:right;">${fmt(e.balance ?? 0)}</td>
+                <td class="text-right font-mono">${e.credit ? fmt(e.credit) : '–'}</td>
+                <td class="text-right font-mono">${e.debit ? fmt(e.debit) : '–'}</td>
+                <td class="text-right font-mono">${fmt(e.balance ?? 0)}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       `;
-        const fullHtml = `
-        <html>
-          <head>
-            <title>Receivables Ledger - ${ledgerData.customer?.name || customerId}</title>
-            <style>
-              body { font-family: system-ui, sans-serif; padding: 16px; }
-              h1, h2 { margin: 12px 0 8px; }
-              table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-              th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
-              th { background: #f3f4f6; }
-            </style>
-          </head>
-          <body>
-            ${headerHtml}
-            ${body}
-          </body>
-        </html>
-      `;
+        const fullHtml = buildPrintDocumentHtml(headerHtml, body, `Receivables Ledger - ${ledgerData.customer?.name || customerId}`);
         await exportPrintAsPdf(fullHtml, `receivable-ledger-${ledgerData.customer?.name || customerId}.pdf`);
         return;
       }
@@ -92,6 +75,77 @@ export default function CustomerLedgerWindow() {
 
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+  const printLedger = async () => {
+    if (!ledgerData) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    try {
+      const company = await getCompanyForPrint();
+      const headerHtml = buildPrintHeaderHtml(
+        company,
+        'Receivables Ledger',
+        `Customer: ${ledgerData.customer?.name || 'Customer'}`
+      );
+      const customer = ledgerData.customer || {};
+      const body = `
+        <p class="summary-line"><strong>${customer.name || '–'}</strong></p>
+        ${customer.contact ? `<p class="summary-line">Contact: ${customer.contact}</p>` : ''}
+        ${customer.address ? `<p class="summary-line">Address: ${customer.address}</p>` : ''}
+        <p class="summary-line">Total due: <strong>${fmt(ledgerData.totalDue)}</strong> &nbsp;|&nbsp; Total recovered: <strong>${fmt(ledgerData.recoveredTotal)}</strong></p>
+        <h2>Ledger (Credit / Debit / Balance)</h2>
+        <table>
+          <thead><tr><th>Date</th><th>Description</th><th class="text-right">Credit</th><th class="text-right">Debit</th><th class="text-right">Balance</th></tr></thead>
+          <tbody>
+            ${(ledgerData.entries || []).map(e => `
+              <tr>
+                <td>${e.date || '–'}</td>
+                <td>${e.description || '–'}</td>
+                <td class="text-right font-mono">${e.credit ? fmt(e.credit) : '–'}</td>
+                <td class="text-right font-mono">${e.debit ? fmt(e.debit) : '–'}</td>
+                <td class="text-right font-mono">${fmt(e.balance ?? 0)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <h2>Credit entries (Receivables)</h2>
+        <table>
+          <thead><tr><th>Date</th><th>Branch</th><th class="text-right">Amount</th><th>Status</th><th>Due Date</th></tr></thead>
+          <tbody>
+            ${(ledgerData.receivables || []).map(r => `
+              <tr>
+                <td>${(r.created_at || '').slice(0, 10)}</td>
+                <td>${r.branch_name || '–'}</td>
+                <td class="text-right font-mono">${fmt(r.amount)}</td>
+                <td>${r.status || '–'}</td>
+                <td>${r.due_date || '–'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <h2>Recoveries</h2>
+        <table>
+          <thead><tr><th>Date</th><th class="text-right">Amount</th><th>Remarks</th></tr></thead>
+          <tbody>
+            ${(ledgerData.recoveries || []).map(rr => `
+              <tr>
+                <td>${(rr.recovered_at || '').slice(0, 10)}</td>
+                <td class="text-right font-mono">${fmt(rr.amount)}</td>
+                <td>${rr.remarks || '–'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      const html = buildPrintDocumentHtml(headerHtml, body, `Receivables Ledger - ${ledgerData.customer?.name || customerId}`);
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    } catch (e) {
+      win.close();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-white shadow-sm">
@@ -105,7 +159,7 @@ export default function CustomerLedgerWindow() {
           <button onClick={() => exportLedger('pdf')} className="btn-secondary">
             <FileDown className="w-4 h-4" /> PDF
           </button>
-          <button onClick={() => window.print()} className="btn-secondary">
+          <button onClick={printLedger} className="btn-secondary">
             <Printer className="w-4 h-4" /> Print
           </button>
           <button

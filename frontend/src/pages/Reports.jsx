@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { FileDown, BarChart3, DollarSign, Wallet, Truck, TrendingUp, Printer } from 'lucide-react';
-import { getCompanyForPrint, buildPrintHeaderHtml, PRINT_DOC_STYLES } from '../utils/printHeader';
+import { getCompanyForPrint, buildPrintHeaderHtml, buildPrintDocumentHtml } from '../utils/printHeader';
 
 export default function Reports() {
   const [module, setModule] = useState('sales');
@@ -192,9 +192,9 @@ export default function Reports() {
       if (module === 'daily_combined') {
         const net = (Number(data.salesTotal) || 0) - (Number(data.purchaseTotal) || 0);
         body += `
-          <p><strong>Date:</strong> ${data.date} ${data.branch_id ? `| Branch: ${data.branch_id}` : '| All branches'}</p>
-          <p><strong>Total sales:</strong> ${fmt(data.salesTotal)} &nbsp; | &nbsp;
-             <strong>Total purchases:</strong> ${fmt(data.purchaseTotal)} &nbsp; | &nbsp;
+          <p class="summary-line"><strong>Date:</strong> ${data.date} ${data.branch_id ? `| Branch: ${data.branch_id}` : '| All branches'}</p>
+          <p class="summary-line"><strong>Total sales:</strong> ${fmt(data.salesTotal)} &nbsp;|&nbsp;
+             <strong>Total purchases:</strong> ${fmt(data.purchaseTotal)} &nbsp;|&nbsp;
              <strong>Net:</strong> ${fmt(net)}</p>
           <h2>Sales</h2>
           <table>
@@ -202,7 +202,7 @@ export default function Reports() {
               <tr>
                 <th>Date</th>
                 <th>Branch</th>
-                <th style="text-align:right;">Net sales</th>
+                <th class="text-right">Net sales</th>
               </tr>
             </thead>
             <tbody>
@@ -212,7 +212,7 @@ export default function Reports() {
                 <tr>
                   <td>${r.sale_date}</td>
                   <td>${r.branch_name || '–'}</td>
-                  <td style="text-align:right;">${fmt(r.net_sales)}</td>
+                  <td class="text-right font-mono">${fmt(r.net_sales)}</td>
                 </tr>
               `
                 )
@@ -225,7 +225,7 @@ export default function Reports() {
               <tr>
                 <th>Date</th>
                 <th>Branch</th>
-                <th style="text-align:right;">Total</th>
+                <th class="text-right">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -235,7 +235,7 @@ export default function Reports() {
                 <tr>
                   <td>${r.purchase_date}</td>
                   <td>${r.branch_name || '–'}</td>
-                  <td style="text-align:right;">${fmt(r.total_amount)}</td>
+                  <td class="text-right font-mono">${fmt(r.total_amount)}</td>
                 </tr>
               `
                 )
@@ -249,7 +249,7 @@ export default function Reports() {
           body += '<p>No data for the selected filters.</p>';
         } else {
           if (typeof total === 'number') {
-            body += `<p><strong>Total:</strong> ${fmt(total)}</p>`;
+            body += `<p class="summary-line"><strong>Total:</strong> ${fmt(total)}</p>`;
           }
           const keys = Object.keys(tableRows[0]).filter(
             (k) => !/^id$|^branch_id$|^category_id$|^supplier_id$/i.test(k)
@@ -261,7 +261,7 @@ export default function Reports() {
                   ${keys
                     .map(
                       (k) =>
-                        `<th style="text-align:left;">${k
+                        `<th>${k
                           .replace(/_/g, ' ')
                           .replace(/\b\w/g, (c) => c.toUpperCase())}</th>`
                     )
@@ -282,8 +282,8 @@ export default function Reports() {
                             : v === null || v === undefined || v === ''
                             ? '–'
                             : String(v);
-                        const align = typeof v === 'number' ? 'right' : 'left';
-                        return `<td style="text-align:${align};">${display}</td>`;
+                        const cls = typeof v === 'number' ? 'text-right font-mono' : '';
+                        return `<td class="${cls}">${display}</td>`;
                       })
                       .join('')}
                   </tr>
@@ -302,8 +302,8 @@ export default function Reports() {
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th style="text-align:right;">Total quantity sold</th>
-                  <th style="text-align:right;">Total amount</th>
+                  <th class="text-right">Total quantity sold</th>
+                  <th class="text-right">Total amount</th>
                 </tr>
               </thead>
               <tbody>
@@ -313,8 +313,8 @@ export default function Reports() {
                     (row) => `
                   <tr>
                     <td>${row.product_name || '–'}</td>
-                    <td style="text-align:right;">${fmt(row.total_quantity_sold)}</td>
-                    <td style="text-align:right;">${fmt(row.total_amount)}</td>
+                    <td class="text-right font-mono">${fmt(row.total_quantity_sold)}</td>
+                    <td class="text-right font-mono">${fmt(row.total_amount)}</td>
                   </tr>
                 `
                   )
@@ -325,20 +325,7 @@ export default function Reports() {
         }
       }
 
-      const html = `
-        <html>
-          <head>
-            <title>${title}</title>
-            <style>
-              ${PRINT_DOC_STYLES}
-            </style>
-          </head>
-          <body>
-            ${headerHtml}
-            ${body}
-          </body>
-        </html>
-      `;
+      const html = buildPrintDocumentHtml(headerHtml, body, title);
       win.document.write(html);
       win.document.close();
       win.focus();

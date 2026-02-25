@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, DollarSign, FileDown, BookOpen, Printer, Search } from 'lucide-react';
-import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf } from '../utils/printHeader';
+import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 
 export default function Staff() {
   const [list, setList] = useState([]);
@@ -132,31 +132,18 @@ export default function Staff() {
         const headerHtml = buildPrintHeaderHtml(company, 'Staff Ledger', ledgerStaff.name, { forPdf: true });
         const salaries = ledger.salaries || [];
         const payments = ledger.payments || [];
-        const fullHtml = `
-      <html>
-        <head>
-          <title>Staff Ledger - ${ledgerStaff.name}</title>
-          <style>
-            body { font-family: system-ui, sans-serif; padding: 16px; }
-            h1, h2 { margin: 0 0 8px; }
-            table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-            th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
-            th { background: #f3f4f6; }
-          </style>
-        </head>
-        <body>
-          ${headerHtml}
-          <p>Total salary: ${fmt(ledger.totalSalary)} | Total paid: ${fmt(ledger.totalPaid)} | Pending: ${fmt(ledger.pending)}</p>
+        const body = `
+          <p class="summary-line">Total salary: <strong>${fmt(ledger.totalSalary)}</strong> &nbsp;|&nbsp; Total paid: <strong>${fmt(ledger.totalPaid)}</strong> &nbsp;|&nbsp; Pending: <strong>${fmt(ledger.pending)}</strong></p>
           <h2>Salaries</h2>
           <table>
             <thead>
               <tr>
                 <th>Month</th>
-                <th>Base</th>
-                <th>Commission</th>
-                <th>Advances</th>
-                <th>Deductions</th>
-                <th>Net</th>
+                <th class="text-right">Base</th>
+                <th class="text-right">Commission</th>
+                <th class="text-right">Advances</th>
+                <th class="text-right">Deductions</th>
+                <th class="text-right">Net</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -164,11 +151,11 @@ export default function Staff() {
               ${salaries.map(r => `
                 <tr>
                   <td>${r.month_year}</td>
-                  <td style="text-align:right;">${fmt(r.base_salary)}</td>
-                  <td style="text-align:right;">${fmt(r.commission)}</td>
-                  <td style="text-align:right;">${fmt(r.advances)}</td>
-                  <td style="text-align:right;">${fmt(r.deductions)}</td>
-                  <td style="text-align:right;">${fmt(r.net_salary)}</td>
+                  <td class="text-right font-mono">${fmt(r.base_salary)}</td>
+                  <td class="text-right font-mono">${fmt(r.commission)}</td>
+                  <td class="text-right font-mono">${fmt(r.advances)}</td>
+                  <td class="text-right font-mono">${fmt(r.deductions)}</td>
+                  <td class="text-right font-mono">${fmt(r.net_salary)}</td>
                   <td>${r.status}</td>
                 </tr>
               `).join('')}
@@ -181,7 +168,7 @@ export default function Staff() {
                 <th>Payment Date</th>
                 <th>Month</th>
                 <th>Mode</th>
-                <th>Amount</th>
+                <th class="text-right">Amount</th>
                 <th>Remarks</th>
               </tr>
             </thead>
@@ -191,15 +178,14 @@ export default function Staff() {
                   <td>${p.payment_date}</td>
                   <td>${p.month_year}</td>
                   <td>${p.mode}</td>
-                  <td style="text-align:right;">${fmt(p.amount)}</td>
+                  <td class="text-right font-mono">${fmt(p.amount)}</td>
                   <td>${p.remarks || '–'}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
-        </body>
-      </html>
-    `;
+        `;
+        const fullHtml = buildPrintDocumentHtml(headerHtml, body, `Staff Ledger - ${ledgerStaff.name}`);
         await exportPrintAsPdf(fullHtml, `staff-ledger-${ledgerStaff.name || ledgerStaff.id}.pdf`);
         return;
       }
@@ -233,31 +219,18 @@ export default function Staff() {
       const headerHtml = buildPrintHeaderHtml(company, 'Staff Ledger', ledgerStaff.name);
       const salaries = ledger.salaries || [];
       const payments = ledger.payments || [];
-      const html = `
-      <html>
-        <head>
-          <title>Staff Ledger - ${ledgerStaff.name}</title>
-          <style>
-            body { font-family: system-ui, sans-serif; padding: 16px; }
-            h1, h2 { margin: 0 0 8px; }
-            table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-            th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
-            th { background: #f3f4f6; }
-          </style>
-        </head>
-        <body>
-          ${headerHtml}
-          <p>Total salary: ${fmt(ledger.totalSalary)} | Total paid: ${fmt(ledger.totalPaid)} | Pending: ${fmt(ledger.pending)}</p>
+      const body = `
+          <p class="summary-line">Total salary: <strong>${fmt(ledger.totalSalary)}</strong> &nbsp;|&nbsp; Total paid: <strong>${fmt(ledger.totalPaid)}</strong> &nbsp;|&nbsp; Pending: <strong>${fmt(ledger.pending)}</strong></p>
           <h2>Salaries</h2>
           <table>
             <thead>
               <tr>
                 <th>Month</th>
-                <th>Base</th>
-                <th>Commission</th>
-                <th>Advances</th>
-                <th>Deductions</th>
-                <th>Net</th>
+                <th class="text-right">Base</th>
+                <th class="text-right">Commission</th>
+                <th class="text-right">Advances</th>
+                <th class="text-right">Deductions</th>
+                <th class="text-right">Net</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -265,11 +238,11 @@ export default function Staff() {
               ${salaries.map(r => `
                 <tr>
                   <td>${r.month_year}</td>
-                  <td style="text-align:right;">${fmt(r.base_salary)}</td>
-                  <td style="text-align:right;">${fmt(r.commission)}</td>
-                  <td style="text-align:right;">${fmt(r.advances)}</td>
-                  <td style="text-align:right;">${fmt(r.deductions)}</td>
-                  <td style="text-align:right;">${fmt(r.net_salary)}</td>
+                  <td class="text-right font-mono">${fmt(r.base_salary)}</td>
+                  <td class="text-right font-mono">${fmt(r.commission)}</td>
+                  <td class="text-right font-mono">${fmt(r.advances)}</td>
+                  <td class="text-right font-mono">${fmt(r.deductions)}</td>
+                  <td class="text-right font-mono">${fmt(r.net_salary)}</td>
                   <td>${r.status}</td>
                 </tr>
               `).join('')}
@@ -282,7 +255,7 @@ export default function Staff() {
                 <th>Payment Date</th>
                 <th>Month</th>
                 <th>Mode</th>
-                <th>Amount</th>
+                <th class="text-right">Amount</th>
                 <th>Remarks</th>
               </tr>
             </thead>
@@ -292,15 +265,14 @@ export default function Staff() {
                   <td>${p.payment_date}</td>
                   <td>${p.month_year}</td>
                   <td>${p.mode}</td>
-                  <td style="text-align:right;">${fmt(p.amount)}</td>
+                  <td class="text-right font-mono">${fmt(p.amount)}</td>
                   <td>${p.remarks || '–'}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
-        </body>
-      </html>
-    `;
+        `;
+      const html = buildPrintDocumentHtml(headerHtml, body, `Staff Ledger - ${ledgerStaff.name}`);
       win.document.write(html);
       win.document.close();
       win.focus();

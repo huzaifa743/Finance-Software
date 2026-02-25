@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, BookOpen, Wallet, FileDown, Printer, Search, X } from 'lucide-react';
-import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf } from '../utils/printHeader';
+import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 
 export default function Customers() {
   const [list, setList] = useState([]);
@@ -132,44 +132,27 @@ export default function Customers() {
         const headerHtml = buildPrintHeaderHtml(company, 'Receivables Ledger', `Customer: ${ledgerCustomer.name || 'Customer'}`, { forPdf: true });
         const customer = ledger?.customer || {};
         const body = `
-        <p><strong>${customer.name || '–'}</strong></p>
-        ${customer.contact ? `<p>Contact: ${customer.contact}</p>` : ''}
-        ${customer.address ? `<p>Address: ${customer.address}</p>` : ''}
-        <p>Total due: ${fmt(ledger?.totalDue ?? 0)} | Total recovered: ${fmt(ledger?.recoveredTotal ?? 0)}</p>
+        <p class="summary-line"><strong>${customer.name || '–'}</strong></p>
+        ${customer.contact ? `<p class="summary-line">Contact: ${customer.contact}</p>` : ''}
+        ${customer.address ? `<p class="summary-line">Address: ${customer.address}</p>` : ''}
+        <p class="summary-line">Total due: <strong>${fmt(ledger?.totalDue ?? 0)}</strong> &nbsp;|&nbsp; Total recovered: <strong>${fmt(ledger?.recoveredTotal ?? 0)}</strong></p>
         <h2>Ledger (Credit / Debit / Balance)</h2>
         <table>
-          <thead><tr><th>Date</th><th>Description</th><th style="text-align:right;">Credit</th><th style="text-align:right;">Debit</th><th style="text-align:right;">Balance</th></tr></thead>
+          <thead><tr><th>Date</th><th>Description</th><th class="text-right">Credit</th><th class="text-right">Debit</th><th class="text-right">Balance</th></tr></thead>
           <tbody>
             ${(ledger?.entries || []).map(e => `
               <tr>
                 <td>${e.date || '–'}</td>
                 <td>${e.description || '–'}</td>
-                <td style="text-align:right;">${e.credit ? fmt(e.credit) : '–'}</td>
-                <td style="text-align:right;">${e.debit ? fmt(e.debit) : '–'}</td>
-                <td style="text-align:right;">${fmt(e.balance ?? 0)}</td>
+                <td class="text-right font-mono">${e.credit ? fmt(e.credit) : '–'}</td>
+                <td class="text-right font-mono">${e.debit ? fmt(e.debit) : '–'}</td>
+                <td class="text-right font-mono">${fmt(e.balance ?? 0)}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       `;
-        const fullHtml = `
-        <html>
-          <head>
-            <title>Receivables Ledger - ${ledgerCustomer.name}</title>
-            <style>
-              body { font-family: system-ui, sans-serif; padding: 16px; }
-              h1, h2 { margin: 12px 0 8px; }
-              table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-              th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
-              th { background: #f3f4f6; }
-            </style>
-          </head>
-          <body>
-            ${headerHtml}
-            ${body}
-          </body>
-        </html>
-      `;
+        const fullHtml = buildPrintDocumentHtml(headerHtml, body, `Receivables Ledger - ${ledgerCustomer.name}`);
         await exportPrintAsPdf(fullHtml, `receivable-ledger-${ledgerCustomer.name || ledgerCustomer.id}.pdf`);
         return;
       }
@@ -202,44 +185,27 @@ export default function Customers() {
       const headerHtml = buildPrintHeaderHtml(company, 'Receivables Ledger', `Customer: ${ledgerCustomer.name || 'Customer'}`);
       const customer = ledger.customer || {};
       const body = `
-        <p><strong>${customer.name || '–'}</strong></p>
-        ${customer.contact ? `<p>Contact: ${customer.contact}</p>` : ''}
-        ${customer.address ? `<p>Address: ${customer.address}</p>` : ''}
-        <p>Total due: ${fmt(ledger.totalDue)} | Total recovered: ${fmt(ledger.recoveredTotal)}</p>
+        <p class="summary-line"><strong>${customer.name || '–'}</strong></p>
+        ${customer.contact ? `<p class="summary-line">Contact: ${customer.contact}</p>` : ''}
+        ${customer.address ? `<p class="summary-line">Address: ${customer.address}</p>` : ''}
+        <p class="summary-line">Total due: <strong>${fmt(ledger.totalDue)}</strong> &nbsp;|&nbsp; Total recovered: <strong>${fmt(ledger.recoveredTotal)}</strong></p>
         <h2>Ledger (Credit / Debit / Balance)</h2>
         <table>
-          <thead><tr><th>Date</th><th>Description</th><th style="text-align:right;">Credit</th><th style="text-align:right;">Debit</th><th style="text-align:right;">Balance</th></tr></thead>
+          <thead><tr><th>Date</th><th>Description</th><th class="text-right">Credit</th><th class="text-right">Debit</th><th class="text-right">Balance</th></tr></thead>
           <tbody>
             ${(ledger.entries || []).map(e => `
               <tr>
                 <td>${e.date || '–'}</td>
                 <td>${e.description || '–'}</td>
-                <td style="text-align:right;">${e.credit ? fmt(e.credit) : '–'}</td>
-                <td style="text-align:right;">${e.debit ? fmt(e.debit) : '–'}</td>
-                <td style="text-align:right;">${fmt(e.balance ?? 0)}</td>
+                <td class="text-right font-mono">${e.credit ? fmt(e.credit) : '–'}</td>
+                <td class="text-right font-mono">${e.debit ? fmt(e.debit) : '–'}</td>
+                <td class="text-right font-mono">${fmt(e.balance ?? 0)}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       `;
-      const html = `
-        <html>
-          <head>
-            <title>Receivables Ledger - ${ledgerCustomer.name}</title>
-            <style>
-              body { font-family: system-ui, sans-serif; padding: 16px; }
-              h1, h2 { margin: 12px 0 8px; }
-              table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-              th, td { border: 1px solid #ccc; padding: 4px 6px; font-size: 12px; }
-              th { background: #f3f4f6; }
-            </style>
-          </head>
-          <body>
-            ${headerHtml}
-            ${body}
-          </body>
-        </html>
-      `;
+      const html = buildPrintDocumentHtml(headerHtml, body, `Receivables Ledger - ${ledgerCustomer.name}`);
       win.document.write(html);
       win.document.close();
       win.focus();
