@@ -16,7 +16,17 @@ router.get('/options', authenticate, (req, res) => {
     ORDER BY due_date ASC, id DESC
   `).all();
   const salaries = db.prepare(`
-    SELECT sr.id, sr.staff_id, sr.month_year, sr.net_salary, s.name as staff_name, b.name as branch_name
+    SELECT
+      sr.id,
+      sr.staff_id,
+      sr.month_year,
+      sr.base_salary,
+      sr.commission,
+      sr.advances,
+      sr.deductions,
+      sr.net_salary,
+      s.name as staff_name,
+      b.name as branch_name
     FROM salary_records sr
     JOIN staff s ON sr.staff_id = s.id
     LEFT JOIN branches b ON s.branch_id = b.id

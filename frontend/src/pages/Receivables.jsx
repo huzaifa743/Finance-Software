@@ -338,55 +338,60 @@ export default function Receivables() {
       )}
 
       {branchLedgerModal && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-white">
-          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
-            <h2 className="text-xl font-semibold text-slate-900">
-              Branch Receivables Ledger — {branchLedgerModal.branchName || 'Branch'}
-            </h2>
-            <button
-              onClick={() => { setBranchLedgerModal(null); setBranchLedgerData(null); }}
-              className="btn-secondary"
-            >
-              <X className="w-4 h-4" /> Close
-            </button>
-          </div>
-          <div className="flex-1 overflow-auto p-6 print:block">
-            {branchLedgerLoading && <p className="text-slate-500">Loading branch ledger…</p>}
-            {branchLedgerData && !branchLedgerLoading && (
-              <>
-                {branchLedgerData.branch && (
-                  <div className="mb-4 p-4 bg-slate-50 rounded-lg">
-                    <p className="font-semibold text-slate-900">{branchLedgerData.branch.name}</p>
-                  </div>
-                )}
-                <h3 className="font-semibold text-slate-800 mt-2 mb-2">Ledger (Credit / Debit / Balance)</h3>
-                <table className="w-full text-sm border border-slate-200 mb-6 bg-white">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="text-left px-4 py-2 font-medium text-slate-700">Date</th>
-                      <th className="text-left px-4 py-2 font-medium text-slate-700">Description</th>
-                      <th className="text-right px-4 py-2 font-medium text-slate-700">Credit</th>
-                      <th className="text-right px-4 py-2 font-medium text-slate-700">Debit</th>
-                      <th className="text-right px-4 py-2 font-medium text-slate-700">Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {(branchLedgerData.entries || []).map((e) => (
-                      <tr key={e.id}>
-                        <td className="px-4 py-2">{e.date || '–'}</td>
-                        <td className="px-4 py-2">{e.description || '–'}</td>
-                        <td className="px-4 py-2 text-right font-mono">{e.credit ? fmt(e.credit) : '–'}</td>
-                        <td className="px-4 py-2 text-right font-mono">{e.debit ? fmt(e.debit) : '–'}</td>
-                        <td className="px-4 py-2 text-right font-mono font-medium">{fmt(e.balance ?? 0)}</td>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="card w-full max-w-5xl p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold text-slate-900">
+                Branch Receivables Ledger — {branchLedgerModal.branchName || 'Branch'}
+              </h2>
+              <button
+                onClick={() => {
+                  setBranchLedgerModal(null);
+                  setBranchLedgerData(null);
+                }}
+                className="btn-secondary text-xs inline-flex items-center gap-1"
+              >
+                <X className="w-4 h-4" /> Close
+              </button>
+            </div>
+            <div className="mt-4">
+              {branchLedgerLoading && <p className="text-slate-500">Loading branch ledger…</p>}
+              {branchLedgerData && !branchLedgerLoading && (
+                <>
+                  {branchLedgerData.branch && (
+                    <div className="mb-4 p-4 bg-slate-50 rounded-lg">
+                      <p className="font-semibold text-slate-900">{branchLedgerData.branch.name}</p>
+                    </div>
+                  )}
+                  <h3 className="font-semibold text-slate-800 mt-2 mb-2">Ledger (Credit / Debit / Balance)</h3>
+                  <table className="w-full text-sm border border-slate-200 mb-6 bg-white">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="text-left px-4 py-2 font-medium text-slate-700">Date</th>
+                        <th className="text-left px-4 py-2 font-medium text-slate-700">Description</th>
+                        <th className="text-right px-4 py-2 font-medium text-slate-700">Credit</th>
+                        <th className="text-right px-4 py-2 font-medium text-slate-700">Debit</th>
+                        <th className="text-right px-4 py-2 font-medium text-slate-700">Balance</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {(!branchLedgerData.entries || !branchLedgerData.entries.length) && (
-                  <p className="text-slate-500 mb-6">No ledger entries yet.</p>
-                )}
-              </>
-            )}
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {(branchLedgerData.entries || []).map((e) => (
+                        <tr key={e.id}>
+                          <td className="px-4 py-2">{e.date || '–'}</td>
+                          <td className="px-4 py-2">{e.description || '–'}</td>
+                          <td className="px-4 py-2 text-right font-mono">{e.credit ? fmt(e.credit) : '–'}</td>
+                          <td className="px-4 py-2 text-right font-mono">{e.debit ? fmt(e.debit) : '–'}</td>
+                          <td className="px-4 py-2 text-right font-mono font-medium">{fmt(e.balance ?? 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(!branchLedgerData.entries || !branchLedgerData.entries.length) && (
+                    <p className="text-slate-500 mb-6">No ledger entries yet.</p>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
