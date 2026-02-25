@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import db from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
+import { getCompanySettings, addPdfCompanyHeader, addExcelCompanyHeader } from '../utils/companyBranding.js';
 
 const router = Router();
 
@@ -291,21 +292,58 @@ function toCsv(data) {
   return [header, ...rows].join('\n');
 }
 
-function writePdf(res, { title, data }) {
+function writePdf(res, { title, subtitle = '', data }) {
   const doc = new PDFDocument({ size: 'A4', margin: 30 });
+  const company = getCompanySettings(db);
   doc.pipe(res);
-  doc.fontSize(16).text(title, { align: 'left' });
-  doc.moveDown(0.5);
+
+  // Branded company header with logo + company name + details + report title
+  addPdfCompanyHeader(doc, company, { title, subtitle });
+
   if (!data.length) {
-    doc.fontSize(11).text('No data for the selected filters.');
+    doc.fontSize(11).font('Helvetica').text('No data for the selected filters.');
     doc.end();
     return;
   }
+
   const keys = Object.keys(data[0]);
-  const rows = data.map((r) => keys.map((k) => String(r[k] ?? '')).join(' | '));
-  doc.fontSize(9).text(keys.join(' | '), { lineGap: 2 });
-  doc.moveDown(0.25);
-  rows.forEach((line) => doc.text(line, { lineGap: 2 }));
+  const leftMargin = doc.page.margins?.left ?? 40;
+  const rightMargin = doc.page.margins?.right ?? 40;
+  const pageWidth = doc.page.width - leftMargin - rightMargin;
+  const colWidth = pageWidth / Math.max(keys.length, 1);
+
+  // Header row
+  doc.fontSize(9).font('Helvetica-Bold');
+  let startY = doc.y;
+  keys.forEach((k, idx) => {
+    const x = leftMargin + idx * colWidth;
+    doc.text(String(k), x, startY, {
+      width: colWidth,
+      continued: false,
+    });
+  });
+  doc.moveDown(0.5);
+
+  // Data rows
+  doc.font('Helvetica').fontSize(9);
+  data.forEach((row) => {
+    const y = doc.y;
+    keys.forEach((k, idx) => {
+      const x = leftMargin + idx * colWidth;
+      const value = row[k];
+      doc.text(
+        value === null || value === undefined ? '' : String(value),
+        x,
+        idx === 0 ? y : doc.y,
+        {
+          width: colWidth,
+          continued: false,
+        }
+      );
+    });
+    doc.moveDown(0.25);
+  });
+
   doc.end();
 }
 
@@ -318,35 +356,44 @@ router.get('/export', authenticate, async (req, res) => {
 
     if (type === 'xlsx') {
       const wb = new ExcelJS.Workbook();
+      const company = getCompanySettings(db);
+
       const wsSales = wb.addWorksheet('Sales');
-      wsSales.columns = [
-        { header: 'Date', key: 'sale_date', width: 12 },
-        { header: 'Branch', key: 'branch_name', width: 18 },
-        { header: 'Type', key: 'type', width: 10 },
-        { header: 'Cash', key: 'cash_amount', width: 12 },
-        { header: 'Bank', key: 'bank_amount', width: 12 },
-        { header: 'Credit', key: 'credit_amount', width: 12 },
-        { header: 'Discount', key: 'discount', width: 12 },
-        { header: 'Returns', key: 'returns_amount', width: 12 },
-        { header: 'Net sales', key: 'net_sales', width: 14 },
-      ];
-      wsSales.addRows(report.salesRows);
-      wsSales.getRow(1).font = { bold: true };
+      addExcelCompanyHeader(wsSales, company, 'Daily combined report — Sales', wb);
+      wsSales.addRow(['Date', 'Branch', 'Type', 'Cash', 'Bank', 'Credit', 'Discount', 'Returns', 'Net sales']);
+      wsSales.lastRow.font = { bold: true };
+      (report.salesRows || []).forEach((r) => {
+        wsSales.addRow([
+          r.sale_date,
+          r.branch_name || '–',
+          r.type || '',
+          r.cash_amount,
+          r.bank_amount,
+          r.credit_amount,
+          r.discount,
+          r.returns_amount,
+          r.net_sales,
+        ]);
+      });
 
       const wsPurch = wb.addWorksheet('Purchases');
-      wsPurch.columns = [
-        { header: 'Date', key: 'purchase_date', width: 12 },
-        { header: 'Branch', key: 'branch_name', width: 18 },
-        { header: 'Supplier', key: 'supplier_name', width: 20 },
-        { header: 'Invoice', key: 'invoice_no', width: 16 },
-        { header: 'Total', key: 'total_amount', width: 14 },
-        { header: 'Paid', key: 'paid_amount', width: 14 },
-        { header: 'Balance', key: 'balance', width: 14 },
-      ];
-      wsPurch.addRows(report.purchaseRows);
-      wsPurch.getRow(1).font = { bold: true };
+      addExcelCompanyHeader(wsPurch, company, 'Daily combined report — Purchases', wb);
+      wsPurch.addRow(['Date', 'Branch', 'Supplier', 'Invoice', 'Total', 'Paid', 'Balance']);
+      wsPurch.lastRow.font = { bold: true };
+      (report.purchaseRows || []).forEach((p) => {
+        wsPurch.addRow([
+          p.purchase_date,
+          p.branch_name || '–',
+          p.supplier_name || '–',
+          p.invoice_no || '–',
+          p.total_amount,
+          p.paid_amount,
+          p.balance,
+        ]);
+      });
 
       const summary = wb.addWorksheet('Summary');
+      addExcelCompanyHeader(summary, company, 'Daily combined report — Summary', wb);
       summary.addRow(['Date', report.date]);
       summary.addRow(['Branch', report.branch_id || 'All']);
       summary.addRow(['Total sales', report.salesTotal]);
@@ -363,26 +410,36 @@ router.get('/export', authenticate, async (req, res) => {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
       const flat = [
         { section: 'Summary', date: report.date, branch_id: report.branch_id || 'All', salesTotal: report.salesTotal, purchaseTotal: report.purchaseTotal },
-        ...report.salesRows.map((s) => ({ section: 'Sales', ...s })),
-        ...report.purchaseRows.map((p) => ({ section: 'Purchases', ...p })),
+        ...(report.salesRows || []).map((s) => ({ section: 'Sales', ...s })),
+        ...(report.purchaseRows || []).map((p) => ({ section: 'Purchases', ...p })),
       ];
-      return writePdf(res, { title: `Daily combined report — ${report.date}`, data: flat });
+      return writePdf(res, { title: 'Daily combined report', subtitle: `Date: ${report.date}  |  Branch: ${report.branch_id || 'All'}`, data: flat });
     }
 
     return res.status(400).json({ error: 'Unsupported type for daily_combined. Use xlsx or pdf.' });
   }
 
   const { data, filename } = buildExportData(module, { from, to, branch_id });
+  const company = getCompanySettings(db);
+  const moduleTitles = {
+    sales: 'Sales report',
+    purchases: 'Purchases report',
+    inventory: 'Inventory sales report',
+    branch_summary: 'Branch summary report',
+  };
+  const reportTitle = moduleTitles[module] || `${module.toUpperCase()} report`;
 
   if (!data.length) {
     if (type === 'pdf') {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
-      return writePdf(res, { title: `${module.toUpperCase()} report`, data: [] });
+      return writePdf(res, { title: reportTitle, data: [] });
     }
     if (type === 'xlsx') {
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('Report');
+      addExcelCompanyHeader(ws, company, reportTitle, wb);
+      ws.addRow(['Info', 'No data for the selected filters.']);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}.xlsx"`);
       await wb.xlsx.write(res);
@@ -395,9 +452,22 @@ router.get('/export', authenticate, async (req, res) => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Report');
     const keys = Object.keys(data[0]);
-    ws.columns = keys.map((k) => ({ header: k, key: k }));
-    ws.addRows(data);
-    ws.getRow(1).font = { bold: true };
+    addExcelCompanyHeader(ws, company, reportTitle, wb);
+    ws.addRow(keys);
+    ws.lastRow.font = { bold: true };
+    data.forEach((row) => {
+      ws.addRow(keys.map((k) => row[k]));
+    });
+    // Auto-fit column widths (with a reasonable max)
+    ws.columns.forEach((col) => {
+      let max = 10;
+      col.eachCell({ includeEmpty: true }, (cell) => {
+        const v = cell.value ? String(cell.value) : '';
+        if (v.length > max) max = Math.min(v.length, 40);
+      });
+      // eslint-disable-next-line no-param-reassign
+      col.width = max + 2;
+    });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}.xlsx"`);
     await wb.xlsx.write(res);
@@ -406,7 +476,7 @@ router.get('/export', authenticate, async (req, res) => {
   if (type === 'pdf') {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
-    return writePdf(res, { title: `${module.toUpperCase()} report`, data });
+    return writePdf(res, { title: reportTitle, data });
   }
   res.status(400).json({ error: 'Unsupported export type. Use xlsx or pdf.' });
 });

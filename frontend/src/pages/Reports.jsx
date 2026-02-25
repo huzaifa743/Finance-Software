@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { FileDown, BarChart3, DollarSign, Wallet, Truck, TrendingUp } from 'lucide-react';
+import { FileDown, BarChart3, DollarSign, Wallet, Truck, TrendingUp, Printer } from 'lucide-react';
+import { getCompanyForPrint, buildPrintHeaderHtml, PRINT_DOC_STYLES } from '../utils/printHeader';
 
 export default function Reports() {
   const [module, setModule] = useState('sales');
@@ -157,6 +158,198 @@ export default function Reports() {
         }
       : null;
 
+  const printReport = async () => {
+    if (!data || module === 'pl') return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    try {
+      const company = await getCompanyForPrint();
+      const moduleTitles = {
+        sales: 'Sales report',
+        purchases: 'Purchases report',
+        inventory: 'Inventory sales report',
+        daily_combined: 'Daily combined report',
+        branch_summary: 'Branch summary report',
+        branch_ledger: 'Branch-wise receivables ledger',
+      };
+      const title = moduleTitles[module] || 'Report';
+
+      const filters = [];
+      if (type === 'daily' && date) filters.push(`Date: ${date}`);
+      if (type === 'monthly' && month && year) filters.push(`Month: ${month}/${year}`);
+      if ((type === 'range' || type === 'supplier' || type === 'category') && (from || to)) {
+        filters.push(`From: ${from || '-'}  To: ${to || '-'}`);
+      }
+      if (branchId) {
+        const branch = branches.find((b) => String(b.id) === String(branchId));
+        filters.push(`Branch: ${branch?.name || branchId}`);
+      }
+      const subtitle = filters.join('  |  ');
+
+      const headerHtml = buildPrintHeaderHtml(company, title, subtitle);
+      let body = '';
+
+      if (module === 'daily_combined') {
+        const net = (Number(data.salesTotal) || 0) - (Number(data.purchaseTotal) || 0);
+        body += `
+          <p><strong>Date:</strong> ${data.date} ${data.branch_id ? `| Branch: ${data.branch_id}` : '| All branches'}</p>
+          <p><strong>Total sales:</strong> ${fmt(data.salesTotal)} &nbsp; | &nbsp;
+             <strong>Total purchases:</strong> ${fmt(data.purchaseTotal)} &nbsp; | &nbsp;
+             <strong>Net:</strong> ${fmt(net)}</p>
+          <h2>Sales</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Branch</th>
+                <th style="text-align:right;">Net sales</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(data.salesRows || [])
+                .map(
+                  (r) => `
+                <tr>
+                  <td>${r.sale_date}</td>
+                  <td>${r.branch_name || '–'}</td>
+                  <td style="text-align:right;">${fmt(r.net_sales)}</td>
+                </tr>
+              `
+                )
+                .join('')}
+            </tbody>
+          </table>
+          <h2>Purchases</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Branch</th>
+                <th style="text-align:right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(data.purchaseRows || [])
+                .map(
+                  (r) => `
+                <tr>
+                  <td>${r.purchase_date}</td>
+                  <td>${r.branch_name || '–'}</td>
+                  <td style="text-align:right;">${fmt(r.total_amount)}</td>
+                </tr>
+              `
+                )
+                .join('')}
+            </tbody>
+          </table>
+        `;
+      } else {
+        const tableRows = rows;
+        if (!tableRows.length) {
+          body += '<p>No data for the selected filters.</p>';
+        } else {
+          if (typeof total === 'number') {
+            body += `<p><strong>Total:</strong> ${fmt(total)}</p>`;
+          }
+          const keys = Object.keys(tableRows[0]).filter(
+            (k) => !/^id$|^branch_id$|^category_id$|^supplier_id$/i.test(k)
+          );
+          body += `
+            <table>
+              <thead>
+                <tr>
+                  ${keys
+                    .map(
+                      (k) =>
+                        `<th style="text-align:left;">${k
+                          .replace(/_/g, ' ')
+                          .replace(/\b\w/g, (c) => c.toUpperCase())}</th>`
+                    )
+                    .join('')}
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows
+                  .map(
+                    (r) => `
+                  <tr>
+                    ${keys
+                      .map((k) => {
+                        const v = r[k];
+                        const display =
+                          typeof v === 'number'
+                            ? fmt(v)
+                            : v === null || v === undefined || v === ''
+                            ? '–'
+                            : String(v);
+                        const align = typeof v === 'number' ? 'right' : 'left';
+                        return `<td style="text-align:${align};">${display}</td>`;
+                      })
+                      .join('')}
+                  </tr>
+                `
+                  )
+                  .join('')}
+              </tbody>
+            </table>
+          `;
+        }
+
+        if (module === 'inventory' && inventorySummary.length > 0) {
+          body += `
+            <h2>Summary by product (selected period)</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th style="text-align:right;">Total quantity sold</th>
+                  <th style="text-align:right;">Total amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${[...inventorySummary]
+                  .sort((a, b) => (Number(b.total_amount) || 0) - (Number(a.total_amount) || 0))
+                  .map(
+                    (row) => `
+                  <tr>
+                    <td>${row.product_name || '–'}</td>
+                    <td style="text-align:right;">${fmt(row.total_quantity_sold)}</td>
+                    <td style="text-align:right;">${fmt(row.total_amount)}</td>
+                  </tr>
+                `
+                  )
+                  .join('')}
+              </tbody>
+            </table>
+          `;
+        }
+      }
+
+      const html = `
+        <html>
+          <head>
+            <title>${title}</title>
+            <style>
+              ${PRINT_DOC_STYLES}
+            </style>
+          </head>
+          <body>
+            ${headerHtml}
+            ${body}
+          </body>
+        </html>
+      `;
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error(e);
+      win.close();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -170,6 +363,13 @@ export default function Reports() {
           </button>
           <button onClick={() => exportData('pdf')} className="btn-secondary">
             <FileDown className="w-4 h-4" /> PDF
+          </button>
+          <button
+            onClick={printReport}
+            className="btn-secondary"
+            disabled={!data || module === 'pl'}
+          >
+            <Printer className="w-4 h-4" /> Print
           </button>
         </div>
       </div>
