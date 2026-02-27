@@ -179,7 +179,6 @@ export default function Payments() {
                         ))}
                     </select>
                   </div>
-                  </div>
                   )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -192,13 +191,7 @@ export default function Payments() {
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
                         required
-                        placeholder={
-                          maxAmount != null
-                            ? `Max ${maxAmount}`
-                            : category === 'supplier' && supplierBalance != null
-                            ? `Max ${fmt(supplierBalance)}`
-                            : ''
-                        }
+                        placeholder={maxAmount != null ? `Max ${maxAmount}` : ''}
                       />
                     </div>
                     <div>
