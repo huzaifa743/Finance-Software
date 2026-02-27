@@ -302,6 +302,8 @@ export default function Staff() {
               r.month_year,
               r.net_salary,
               r.status,
+              r.paid_amount,
+              r.remaining_amount,
             ].map(normalize).join(' ');
             return hay.includes(ledgerNeedle);
           })
@@ -531,9 +533,11 @@ export default function Staff() {
                         <th className="text-left px-3 py-2">Month</th>
                         <th className="text-right px-3 py-2">Base</th>
                         <th className="text-right px-3 py-2">Commission</th>
-                        <th className="text-right px-3 py-2">Advances</th>
+                        <th className="text-right px-3 py-2">Advances (planned)</th>
                         <th className="text-right px-3 py-2">Deductions</th>
-                        <th className="text-right px-3 py-2">Net</th>
+                        <th className="text-right px-3 py-2">Net salary</th>
+                        <th className="text-right px-3 py-2">Paid (total)</th>
+                        <th className="text-right px-3 py-2">Remaining</th>
                         <th className="text-left px-3 py-2">Status</th>
                       </tr>
                     </thead>
@@ -543,9 +547,11 @@ export default function Staff() {
                           <td className="px-3 py-2">{r.month_year}</td>
                           <td className="px-3 py-2 text-right font-mono">{fmt(r.base_salary)}</td>
                           <td className="px-3 py-2 text-right font-mono">{fmt(r.commission)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(r.advances)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(r.advances_planned ?? r.advances)}</td>
                           <td className="px-3 py-2 text-right font-mono">{fmt(r.deductions)}</td>
                           <td className="px-3 py-2 text-right font-mono">{fmt(r.net_salary)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(r.paid_amount ?? 0)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(r.remaining_amount ?? (r.net_salary - (r.paid_amount || 0)))}</td>
                           <td className="px-3 py-2">{r.status}</td>
                         </tr>
                       ))}

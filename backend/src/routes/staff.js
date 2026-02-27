@@ -50,7 +50,7 @@ router.get('/:id/ledger', authenticate, (req, res) => {
   `).get(req.params.id);
   if (!staff) return res.status(404).json({ error: 'Staff not found.' });
 
-  const salaries = db.prepare(`
+  const salariesRaw = db.prepare(`
     SELECT * FROM salary_records
     WHERE staff_id = ?
     ORDER BY month_year DESC
@@ -64,8 +64,45 @@ router.get('/:id/ledger', authenticate, (req, res) => {
     ORDER BY p.payment_date DESC, p.id DESC
   `).all(staff.id);
 
+  // Map salaries and attach per-month paid / remaining information
+  const bySalary = new Map();
+  salariesRaw.forEach((r) => {
+    const net = parseFloat(r.net_salary) || 0;
+    const adv = parseFloat(r.advances) || 0;
+    bySalary.set(r.id, {
+      ...r,
+      paid_amount: 0,
+      remaining_amount: net,
+      advance_paid: 0,
+      salary_paid: 0,
+      total_salary: (parseFloat(r.base_salary) || 0) + (parseFloat(r.commission) || 0),
+      advances_planned: adv,
+    });
+  });
+
+  payments.forEach((p) => {
+    const s = bySalary.get(p.reference_id);
+    if (!s) return;
+    const amt = parseFloat(p.amount) || 0;
+    s.paid_amount += amt;
+  });
+
+  bySalary.forEach((s) => {
+    const net = parseFloat(s.net_salary) || 0;
+    const adv = parseFloat(s.advances_planned) || 0;
+    const paid = s.paid_amount || 0;
+    const advancePaid = Math.min(paid, adv);
+    const salaryPaid = Math.max(0, paid - advancePaid);
+    const remaining = Math.max(0, net - paid);
+    s.advance_paid = advancePaid;
+    s.salary_paid = salaryPaid;
+    s.remaining_amount = remaining;
+  });
+
+  const salaries = Array.from(bySalary.values());
+
   const totalSalary = salaries.reduce((a, r) => a + (parseFloat(r.net_salary) || 0), 0);
-  const totalPaid = payments.reduce((a, r) => a + (parseFloat(r.amount) || 0), 0);
+  const totalPaid = salaries.reduce((a, r) => a + (parseFloat(r.paid_amount) || 0), 0);
   const pending = totalSalary - totalPaid;
 
   res.json({ staff, salaries, payments, totalSalary, totalPaid, pending });
@@ -210,6 +247,17 @@ router.post('/:id/salary', authenticate, requireRole('Super Admin', 'Finance Man
     const staff = db.prepare('SELECT * FROM staff WHERE id = ?').get(req.params.id);
     if (!staff) return res.status(404).json({ error: 'Staff not found.' });
     const { month_year, base_salary, commission, advances, deductions } = req.body;
+    if (!month_year) return res.status(400).json({ error: 'month_year required (YYYY-MM).' });
+
+    // Prevent duplicate salary processing for the same staff and month
+    const existing = db.prepare(`
+      SELECT id, status FROM salary_records
+      WHERE staff_id = ? AND month_year = ?
+    `).get(staff.id, month_year);
+    if (existing) {
+      return res.status(400).json({ error: 'Salary already processed for this staff and month.' });
+    }
+
     const base = (parseFloat(base_salary) ?? parseFloat(staff.fixed_salary)) || 0;
     const comm = parseFloat(commission) || 0;
     const adv = parseFloat(advances) || 0;

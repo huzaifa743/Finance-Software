@@ -18,6 +18,9 @@ export default function RentBills() {
   const [ledgerData, setLedgerData] = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerCategory, setLedgerCategory] = useState('');
+  const [entryLedgerModal, setEntryLedgerModal] = useState(null);
+  const [entryLedgerData, setEntryLedgerData] = useState(null);
+  const [entryLedgerLoading, setEntryLedgerLoading] = useState(false);
   const [query, setQuery] = useState('');
 
   const load = () => api.get('/rent-bills').then(setList).catch((e) => setErr(e.message));
@@ -116,6 +119,135 @@ export default function RentBills() {
   };
 
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+  const openEntryLedger = async (bill) => {
+    setEntryLedgerModal(bill);
+    setEntryLedgerData(null);
+    setEntryLedgerLoading(true);
+    setErr('');
+    try {
+      const d = await api.get(`/rent-bills/${bill.id}/ledger`);
+      setEntryLedgerData(d);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setEntryLedgerLoading(false);
+    }
+  };
+
+  const downloadEntryLedger = async (format) => {
+    if (!entryLedgerModal) return;
+    setErr('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(
+        `/api/rent-bills/${entryLedgerModal.id}/ledger/export?type=${format}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || res.statusText || 'Export failed');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ext = format === 'xlsx' ? 'xlsx' : 'pdf';
+      a.href = url;
+      a.download = `rent-bill-ledger-${(entryLedgerModal.title || entryLedgerModal.id)
+        .toString()
+        .replace(/\s+/g, '-')}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
+  const printEntryLedger = async () => {
+    if (!entryLedgerModal || !entryLedgerData) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    try {
+      const company = await getCompanyForPrint();
+      const headerHtml = buildPrintHeaderHtml(
+        company,
+        'Rent & Bills Ledger',
+        entryLedgerModal.title
+      );
+      const bill = entryLedgerData.bill || {};
+      const payments = entryLedgerData.payments || [];
+      const body = `
+        <p class="summary-line">
+          Total amount: <strong>${fmt(entryLedgerData.totalAmount)}</strong>
+          &nbsp;|&nbsp; Total paid: <strong>${fmt(entryLedgerData.totalPaid)}</strong>
+          &nbsp;|&nbsp; Balance: <strong>${fmt(entryLedgerData.balance)}</strong>
+        </p>
+        <h2>Bill</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Category</th>
+              <th class="text-right">Amount</th>
+              <th class="text-right">Paid</th>
+              <th class="text-right">Balance</th>
+              <th>Due Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${bill.title || '–'}</td>
+              <td>${bill.category || 'bill'}</td>
+              <td class="text-right font-mono">${fmt(entryLedgerData.totalAmount)}</td>
+              <td class="text-right font-mono">${fmt(entryLedgerData.totalPaid)}</td>
+              <td class="text-right font-mono">${fmt(entryLedgerData.balance)}</td>
+              <td>${bill.due_date || '–'}</td>
+              <td>${bill.status || 'pending'}</td>
+            </tr>
+          </tbody>
+        </table>
+        <h2>Payments</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Mode</th>
+              <th>Bank</th>
+              <th class="text-right">Amount</th>
+              <th>Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${payments
+              .map(
+                (p) => `
+              <tr>
+                <td>${p.payment_date || ''}</td>
+                <td>${p.mode === 'bank' ? 'Bank' : 'Cash'}</td>
+                <td>${p.bank_name || '–'}</td>
+                <td class="text-right font-mono">${fmt(p.amount)}</td>
+                <td>${p.remarks || '–'}</td>
+              </tr>
+            `
+              )
+              .join('')}
+          </tbody>
+        </table>
+      `;
+      const html = buildPrintDocumentHtml(
+        headerHtml,
+        body,
+        `Rent & Bills Ledger - ${entryLedgerModal.title || ''}`
+      );
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+    } catch {
+      win.close();
+    }
+  };
 
   const printLedger = async () => {
     if (!ledgerData) return;
@@ -259,6 +391,13 @@ export default function RentBills() {
                       <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${r.status === 'pending' ? 'bg-amber-100 text-amber-800' : r.status === 'partial' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>{r.status}</span>
                     </td>
                     <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => openEntryLedger(r)}
+                        className="p-1.5 text-slate-500 hover:text-primary-600"
+                        title="Ledger"
+                      >
+                        <BookOpen className="w-4 h-4" />
+                      </button>
                       <button onClick={() => openAttachments(r)} className="p-1.5 text-slate-500 hover:text-primary-600" title="Documents"><Paperclip className="w-4 h-4" /></button>
                       <button onClick={() => openEdit(r)} className="p-1.5 text-slate-500 hover:text-primary-600"><Pencil className="w-4 h-4" /></button>
                       <button onClick={() => remove(r)} className="p-1.5 text-slate-500 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
@@ -466,6 +605,139 @@ export default function RentBills() {
                   </tbody>
                 </table>
                 {(!ledgerData.items || !ledgerData.items.length) && <p className="p-8 text-center text-slate-500">No rent or bills.</p>}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {entryLedgerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="card w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 mb-1">
+                  Ledger — {entryLedgerModal.title}
+                </h2>
+                {entryLedgerData && (
+                  <p className="text-sm text-slate-600">
+                    Total amount: {fmt(entryLedgerData.totalAmount)} • Total paid:{' '}
+                    {fmt(entryLedgerData.totalPaid)} • Balance:{' '}
+                    {fmt(entryLedgerData.balance)}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadEntryLedger('xlsx')}
+                  className="btn-secondary text-xs inline-flex items-center gap-1"
+                  disabled={entryLedgerLoading || !entryLedgerData}
+                >
+                  <FileDown className="w-3 h-3" /> Excel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => downloadEntryLedger('pdf')}
+                  className="btn-secondary text-xs inline-flex items-center gap-1"
+                  disabled={entryLedgerLoading || !entryLedgerData}
+                >
+                  <FileDown className="w-3 h-3" /> PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={printEntryLedger}
+                  className="btn-secondary text-xs inline-flex items-center gap-1"
+                  disabled={entryLedgerLoading || !entryLedgerData}
+                >
+                  <Printer className="w-3 h-3" /> Print
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEntryLedgerModal(null);
+                    setEntryLedgerData(null);
+                  }}
+                  className="btn-secondary text-xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            {entryLedgerLoading && (
+              <p className="mt-4 text-sm text-slate-500">Loading ledger…</p>
+            )}
+
+            {entryLedgerData && !entryLedgerLoading && (
+              <>
+                <div className="mt-4 mb-4 p-4 bg-slate-50 rounded-lg text-sm">
+                  <p className="font-semibold text-slate-800">
+                    {entryLedgerData.bill?.title}
+                  </p>
+                  <p className="text-slate-600">
+                    Category: {entryLedgerData.bill?.category || 'bill'} • Due:{' '}
+                    {entryLedgerData.bill?.due_date || '–'} • Status:{' '}
+                    {entryLedgerData.bill?.status || 'pending'}
+                  </p>
+                  {entryLedgerData.bill?.remarks && (
+                    <p className="text-slate-500 mt-1">
+                      Remarks: {entryLedgerData.bill.remarks}
+                    </p>
+                  )}
+                </div>
+
+                <h3 className="text-sm font-semibold text-slate-800 mb-2">
+                  Payments
+                </h3>
+                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="text-left px-4 py-2 font-medium text-slate-700">
+                          Date
+                        </th>
+                        <th className="text-left px-4 py-2 font-medium text-slate-700">
+                          Mode
+                        </th>
+                        <th className="text-left px-4 py-2 font-medium text-slate-700">
+                          Bank
+                        </th>
+                        <th className="text-right px-4 py-2 font-medium text-slate-700">
+                          Amount
+                        </th>
+                        <th className="text-left px-4 py-2 font-medium text-slate-700">
+                          Remarks
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {(entryLedgerData.payments || []).map((p) => (
+                        <tr key={p.id}>
+                          <td className="px-4 py-2">{p.payment_date}</td>
+                          <td className="px-4 py-2">
+                            {p.mode === 'bank' ? 'Bank' : 'Cash'}
+                          </td>
+                          <td className="px-4 py-2">
+                            {p.bank_name || '–'}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono">
+                            {fmt(p.amount)}
+                          </td>
+                          <td className="px-4 py-2">
+                            {p.remarks || '–'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(!entryLedgerData.payments ||
+                    !entryLedgerData.payments.length) && (
+                    <p className="p-4 text-sm text-slate-500 text-center">
+                      No payments yet.
+                    </p>
+                  )}
+                </div>
               </>
             )}
           </div>

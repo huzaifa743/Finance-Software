@@ -72,6 +72,29 @@ router.get('/ledger', authenticate, (req, res) => {
   res.json({ items, totalAmount, totalPaid, totalBalance: totalAmount - totalPaid });
 });
 
+// Single rent/bill ledger (one entry with its payments) - /:id/ledger
+router.get('/:id/ledger', authenticate, (req, res) => {
+  const { id } = req.params;
+  const bill = db.prepare('SELECT * FROM rent_bills WHERE id = ?').get(id);
+  if (!bill) return res.status(404).json({ error: 'Rent/Bill not found.' });
+
+  const payments = db.prepare(`
+    SELECT p.*, b.name as bank_name
+    FROM payments p
+    LEFT JOIN banks b ON p.bank_id = b.id
+    WHERE p.reference_type = 'rent_bill' AND p.reference_id = ?
+    ORDER BY p.payment_date ASC, p.id ASC
+  `).all(id);
+
+  const totalAmount = parseFloat(bill.amount) || 0;
+  const totalPaid = bill.paid_amount != null
+    ? (parseFloat(bill.paid_amount) || 0)
+    : payments.reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
+  const balance = totalAmount - totalPaid;
+
+  res.json({ bill, payments, totalAmount, totalPaid, balance });
+});
+
 router.get('/ledger/export', authenticate, async (req, res) => {
   const { type, category } = req.query;
   if (!type) return res.status(400).json({ error: 'type is required (pdf or xlsx)' });
@@ -146,6 +169,115 @@ router.get('/ledger/export', authenticate, async (req, res) => {
         { lineGap: 2 }
       );
     });
+    doc.end();
+    return;
+  }
+
+  return res.status(400).json({ error: 'Unsupported type. Use pdf or xlsx.' });
+});
+
+// Single rent/bill ledger export (one entry) - /:id/ledger/export
+router.get('/:id/ledger/export', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { type } = req.query;
+  if (!type) return res.status(400).json({ error: 'type is required (pdf or xlsx)' });
+
+  const bill = db.prepare('SELECT * FROM rent_bills WHERE id = ?').get(id);
+  if (!bill) return res.status(404).json({ error: 'Rent/Bill not found.' });
+
+  const payments = db.prepare(`
+    SELECT p.*, b.name as bank_name
+    FROM payments p
+    LEFT JOIN banks b ON p.bank_id = b.id
+    WHERE p.reference_type = 'rent_bill' AND p.reference_id = ?
+    ORDER BY p.payment_date ASC, p.id ASC
+  `).all(id);
+
+  const totalAmount = parseFloat(bill.amount) || 0;
+  const totalPaid = bill.paid_amount != null
+    ? (parseFloat(bill.paid_amount) || 0)
+    : payments.reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
+  const balance = totalAmount - totalPaid;
+
+  const company = getCompanySettings(db);
+  const safeTitle = (bill.title || `rent-bill-${id}`).replace(/\s+/g, '-');
+  const filenameBase = `rent-bill-ledger-${safeTitle}`;
+
+  if (type === 'xlsx') {
+    const wb = new ExcelJS.Workbook();
+    wb.creator = company.companyName || 'Finance Software';
+
+    const ws = wb.addWorksheet('Ledger');
+    addExcelCompanyHeader(ws, company, `Rent/Bill Ledger — ${bill.title}`, wb);
+    ws.addRow(['Title', 'Category', 'Amount', 'Paid', 'Balance', 'Due Date', 'Status']);
+    ws.lastRow.font = { bold: true };
+    ws.addRow([
+      bill.title,
+      bill.category || 'bill',
+      totalAmount,
+      totalPaid,
+      balance,
+      bill.due_date || '',
+      bill.status || 'pending',
+    ]);
+
+    const wsPay = wb.addWorksheet('Payments');
+    addExcelCompanyHeader(wsPay, company, `Payments — ${bill.title}`, wb);
+    wsPay.addRow(['Payment Date', 'Mode', 'Bank', 'Amount', 'Remarks']);
+    wsPay.lastRow.font = { bold: true };
+    payments.forEach((p) => {
+      wsPay.addRow([
+        p.payment_date,
+        p.mode === 'bank' ? 'Bank' : 'Cash',
+        p.bank_name || '',
+        parseFloat(p.amount) || 0,
+        p.remarks || '',
+      ]);
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.xlsx"`);
+    await wb.xlsx.write(res);
+    return res.end();
+  }
+
+  if (type === 'pdf') {
+    const doc = new PDFDocument({ size: 'A4', margin: 30 });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.pdf"`);
+    doc.pipe(res);
+
+    addPdfCompanyHeader(doc, company, { title: 'Rent/Bill Ledger', subtitle: bill.title });
+    doc.fontSize(10).font('Helvetica').text(
+      `Amount: ${totalAmount.toFixed(2)}   Paid: ${totalPaid.toFixed(2)}   Balance: ${balance.toFixed(2)}`
+    );
+    if (bill.due_date || bill.status || bill.category) {
+      doc.moveDown(0.5);
+      doc.fontSize(9).font('Helvetica').text(
+        `Category: ${bill.category || 'bill'}   Due: ${bill.due_date || '–'}   Status: ${bill.status || 'pending'}`
+      );
+    }
+    if (bill.remarks) {
+      doc.moveDown(0.5);
+      doc.fontSize(9).font('Helvetica').text(`Remarks: ${bill.remarks}`);
+    }
+
+    doc.moveDown(1);
+    doc.fontSize(11).font('Helvetica-Bold').text('Payments', { underline: true });
+    doc.moveDown(0.25);
+
+    if (payments.length) {
+      doc.fontSize(9).font('Helvetica').text('Date\tMode\tBank\tAmount\tRemarks', { lineGap: 2 });
+      payments.forEach((p) => {
+        doc.text(
+          `${p.payment_date || ''}\t${p.mode === 'bank' ? 'Bank' : 'Cash'}\t${p.bank_name || '–'}\t${(parseFloat(p.amount) || 0).toFixed(2)}\t${p.remarks || '–'}`,
+          { lineGap: 2 }
+        );
+      });
+    } else {
+      doc.fontSize(9).font('Helvetica').text('No payments yet.');
+    }
+
     doc.end();
     return;
   }
