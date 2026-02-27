@@ -76,14 +76,16 @@ router.get('/', authenticate, (req, res) => {
   const rows = db.prepare(sql).all(...params);
   res.json(rows);
 });
-
 router.post('/', authenticate, requireNotAuditor, logActivity('payment', 'payments', req => req.body?.category || ''), (req, res) => {
   try {
     const { category, reference_id, amount, payment_date, payment_method, remarks } = req.body;
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return res.status(400).json({ error: 'Invalid amount.' });
-    // Only allow payments for rent/bills and salaries from this screen
-    const validCategories = ['rent_bill', 'salary'];
+    // Allowed categories:
+    // - rent_bill: pay rent & utility bills
+    // - salary: pay staff salaries
+    // - receivable_recovery: receive from customers against receivables
+    const validCategories = ['rent_bill', 'salary', 'receivable_recovery'];
     if (!validCategories.includes(category)) return res.status(400).json({ error: 'Invalid category.' });
     if (!reference_id) return res.status(400).json({ error: 'reference_id required.' });
 
@@ -95,6 +97,7 @@ router.post('/', authenticate, requireNotAuditor, logActivity('payment', 'paymen
     const voucher = getNextVoucherNumber();
     const voucherRemarks = appendVoucherNote(remarks, voucher);
 
+    // Category-specific validations and side-effects (domain logic)
     if (category === 'rent_bill') {
       const rb = db.prepare('SELECT * FROM rent_bills WHERE id = ?').get(reference_id);
       if (!rb) return res.status(404).json({ error: 'Rent/Bill not found.' });
@@ -117,28 +120,70 @@ router.post('/', authenticate, requireNotAuditor, logActivity('payment', 'paymen
       if (amt > remainingSalary) {
         return res.status(400).json({ error: `Amount exceeds remaining salary (${remainingSalary}).` });
       }
+    } else if (category === 'receivable_recovery') {
+      const rec = db.prepare('SELECT * FROM receivables WHERE id = ?').get(reference_id);
+      if (!rec) return res.status(404).json({ error: 'Receivable not found.' });
+      const currentBalance = parseFloat(rec.amount) || 0;
+      if (currentBalance <= 0) {
+        return res.status(400).json({ error: 'Receivable already fully recovered.' });
+      }
+      if (amt > currentBalance) {
+        return res.status(400).json({ error: `Amount exceeds receivable balance (${currentBalance}).` });
+      }
+
+      const remaining = currentBalance - amt;
+      const newStatus = remaining <= 0 ? 'recovered' : 'partial';
+
+      // Record in receivable_recoveries for ledgers (customer & branch)
+      db.prepare(`
+        INSERT INTO receivable_recoveries (receivable_id, amount, remarks, recovered_at)
+        VALUES (?, ?, ?, ?)
+      `).run(
+        rec.id,
+        amt,
+        voucherRemarks || null,
+        paymentDate
+      );
+
+      // Update receivable balance & status
+      db.prepare('UPDATE receivables SET amount = ?, status = ? WHERE id = ?').run(
+        Math.max(0, remaining),
+        newStatus,
+        rec.id
+      );
     }
 
+    // Bank transactions: outflows (payments) vs inflows (receivable recoveries)
     if (isBank && bankId) {
       const bank = db.prepare('SELECT id FROM banks WHERE id = ?').get(bankId);
       if (!bank) return res.status(400).json({ error: 'Bank not found.' });
+
+      const isInflow = category === 'receivable_recovery';
+      const bankTxnType = isInflow ? 'deposit' : 'payment';
+      const description = isInflow
+        ? `Receivable recovery #${reference_id}`
+        : `Payment ${category} #${reference_id}`;
+
       db.prepare(`
         INSERT INTO bank_transactions (bank_id, type, amount, transaction_date, reference, description)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(
         bankId,
-        'payment',
+        bankTxnType,
         amt,
         paymentDate,
         voucherRemarks || voucher,
-        `Payment ${category} #${reference_id}`
+        description
       );
     }
+
+    // For receivable_recovery we want reference_type = 'receivable' so that labels resolve to customer name
+    const referenceType = category === 'receivable_recovery' ? 'receivable' : category;
 
     db.prepare(`
       INSERT INTO payments (type, reference_id, reference_type, amount, payment_date, mode, bank_id, remarks)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(category, reference_id, category, amt, paymentDate, mode, bankId, voucherRemarks || null);
+    `).run(category, reference_id, referenceType, amt, paymentDate, mode, bankId, voucherRemarks || null);
 
     if (category === 'rent_bill') {
       const rb = db.prepare('SELECT * FROM rent_bills WHERE id = ?').get(reference_id);

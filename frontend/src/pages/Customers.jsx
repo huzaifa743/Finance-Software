@@ -81,8 +81,15 @@ export default function Customers() {
       return;
     }
     try {
-      await api.post(`/receivables/${recoverForm.receivable_id}/recover`, {
+      // Record recovery through payments API so that:
+      // - receivables & receivable_recoveries are updated (handled on backend)
+      // - dashboard cash/receivable widgets include this recovery
+      await api.post('/payments', {
+        category: 'receivable_recovery',
+        reference_id: recoverForm.receivable_id,
         amount: recoverForm.amount,
+        payment_date: new Date().toISOString().slice(0, 10),
+        payment_method: 'cash',
         remarks: recoverForm.remarks,
       });
       setRecoverModal(null);
