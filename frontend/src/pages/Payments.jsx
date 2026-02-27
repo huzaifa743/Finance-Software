@@ -1,24 +1,20 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { CreditCard, Building2, FileText, Banknote, Landmark, WalletCards, Wallet } from 'lucide-react';
+import { CreditCard, FileText, Banknote, Landmark, WalletCards } from 'lucide-react';
 
 const CATEGORIES = [
-  { value: 'supplier', label: 'Supplier', icon: Building2, kind: 'give' },
   { value: 'rent_bill', label: 'Rent & Bills', icon: FileText, kind: 'give' },
   { value: 'salary', label: 'Salaries', icon: Banknote, kind: 'give' },
-  { value: 'receivable_recovery', label: 'Receive from customer', icon: Wallet, kind: 'receive' },
 ];
 
 const FILTER_TYPES = [
   { value: '', label: 'All types' },
-  { value: 'supplier', label: 'Supplier' },
   { value: 'rent_bill', label: 'Rent & Bills' },
   { value: 'salary', label: 'Salary' },
-  { value: 'receivable', label: 'Receive (customer)' },
 ];
 
 export default function Payments() {
-  const [options, setOptions] = useState({ suppliers: [], rent_bills: [], salaries: [], banks: [], customers_with_balance: [] });
+  const [options, setOptions] = useState({ rent_bills: [], salaries: [], banks: [] });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [category, setCategory] = useState('');
@@ -29,11 +25,6 @@ export default function Payments() {
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [recentPayments, setRecentPayments] = useState([]);
-  const [supplierBalance, setSupplierBalance] = useState(null);
-  const [receivableCustomerId, setReceivableCustomerId] = useState('');
-  const [receivableMode, setReceivableMode] = useState('customer'); // 'customer' | 'branch'
-  const [receivableBranchId, setReceivableBranchId] = useState('');
-  const [openReceivables, setOpenReceivables] = useState([]);
   const [filterType, setFilterType] = useState('');
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
@@ -57,88 +48,27 @@ export default function Payments() {
   useEffect(() => {
     setReferenceId('');
     setAmount('');
-    setSupplierBalance(null);
-    setReceivableCustomerId('');
-    setReceivableBranchId('');
-    setReceivableMode('customer');
-    setOpenReceivables([]);
   }, [category]);
 
-  useEffect(() => {
-    if (category !== 'receivable_recovery') {
-      setOpenReceivables([]);
-      return;
-    }
-
-    if (receivableMode === 'customer') {
-      if (!receivableCustomerId) {
-        setOpenReceivables([]);
-        return;
-      }
-      api
-        .get(`/receivables?customer_id=${receivableCustomerId}`)
-        .then((recs) => setOpenReceivables((recs || []).filter((r) => r.status === 'pending' || r.status === 'partial')))
-        .catch(() => setOpenReceivables([]));
-      return;
-    }
-
-    if (!receivableBranchId) {
-      setOpenReceivables([]);
-      return;
-    }
-    api
-      .get(`/receivables?branch_id=${receivableBranchId}`)
-      .then((recs) => setOpenReceivables((recs || []).filter((r) => r.status === 'pending' || r.status === 'partial')))
-      .catch(() => setOpenReceivables([]));
-  }, [category, receivableCustomerId, receivableBranchId, receivableMode]);
-
   const subOptions = () => {
-    if (category === 'supplier') return options.suppliers || [];
     if (category === 'rent_bill') return options.rent_bills || [];
     if (category === 'salary') return options.salaries || [];
-    if (category === 'receivable_recovery') return openReceivables || [];
     return [];
   };
 
   const selectedSub = subOptions().find((s) => String(s.id) === String(referenceId));
-  const selectedCustomerRec =
-    category === 'receivable_recovery' && receivableMode === 'customer'
-      ? (options.customers_with_balance || []).find((c) => String(c.id) === String(receivableCustomerId))
-      : null;
-  const selectedBranchRec =
-    category === 'receivable_recovery' && receivableMode === 'branch'
-      ? (branches || []).find((b) => String(b.id) === String(receivableBranchId))
-      : null;
   const maxAmount =
     category === 'rent_bill' && selectedSub
       ? (Number(selectedSub.balance) || 0)
-      : category === 'receivable_recovery' && selectedSub
-      ? (Number(selectedSub.amount) || 0)
       : category === 'salary' && selectedSub
       ? (Number(selectedSub.remaining_amount ?? selectedSub.net_salary) || 0)
       : null;
-
-  useEffect(() => {
-    const loadSupplierBalance = async () => {
-      if (category !== 'supplier' || !referenceId) {
-        setSupplierBalance(null);
-        return;
-      }
-      try {
-        const ledger = await api.get(`/purchases/suppliers/${referenceId}/ledger`);
-        setSupplierBalance(Number(ledger?.balance) || 0);
-      } catch {
-        setSupplierBalance(null);
-      }
-    };
-    loadSupplierBalance();
-  }, [category, referenceId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr('');
     if (!category || !referenceId) {
-      setErr(category === 'receivable_recovery' ? 'Please select customer and a receivable.' : 'Please select category and an item to pay.');
+      setErr('Please select category and an item to pay.');
       return;
     }
     const amt = parseFloat(amount);
@@ -146,14 +76,7 @@ export default function Payments() {
       setErr('Enter a valid amount.');
       return;
     }
-    const effectiveMax =
-      maxAmount != null
-        ? maxAmount
-        : category === 'supplier' && supplierBalance != null
-        ? supplierBalance
-        : null;
-
-    if (effectiveMax != null && amt > effectiveMax) {
+    if (maxAmount != null && amt > maxAmount) {
       setErr(`Amount cannot exceed balance (${maxAmount}).`);
       return;
     }
@@ -195,13 +118,13 @@ export default function Payments() {
         <div className="flex flex-col gap-6 lg:flex-row">
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-              <CreditCard className="w-5 h-5" /> Payment or receive
+              <CreditCard className="w-5 h-5" /> Record payment
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="label">Type</label>
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Give (pay out)</p>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Type</p>
                   <div className="flex flex-wrap gap-2">
                     {CATEGORIES.filter((c) => c.kind === 'give').map((c) => (
                       <button
@@ -218,143 +141,15 @@ export default function Payments() {
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mt-3">Receive</p>
-                  <div className="flex flex-wrap gap-2">
-                    {CATEGORIES.filter((c) => c.kind === 'receive').map((c) => (
-                      <button
-                        key={c.value}
-                        type="button"
-                        onClick={() => setCategory(c.value)}
-                        className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
-                          category === c.value
-                            ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        <c.icon className="w-4 h-4" /> {c.label}
-                      </button>
-                    ))}
-                  </div>
                 </div>
               </div>
 
               {category && (
                 <>
-                  {category === 'receivable_recovery' && (
-                    <>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-medium text-slate-600 uppercase tracking-wide">Receive by</span>
-                        <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setReceivableMode('customer');
-                              setReceivableBranchId('');
-                              setReferenceId('');
-                              setAmount('');
-                              setOpenReceivables([]);
-                            }}
-                            className={`px-3 py-1 text-xs font-medium rounded-md ${
-                              receivableMode === 'customer'
-                                ? 'bg-white text-primary-700 shadow-sm'
-                                : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                          >
-                            Customer
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setReceivableMode('branch');
-                              setReceivableCustomerId('');
-                              setReferenceId('');
-                              setAmount('');
-                              setOpenReceivables([]);
-                            }}
-                            className={`px-3 py-1 text-xs font-medium rounded-md ${
-                              receivableMode === 'branch'
-                                ? 'bg-white text-primary-700 shadow-sm'
-                                : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                          >
-                            Branch
-                          </button>
-                        </div>
-                      </div>
-                      {receivableMode === 'customer' && (
-                        <div>
-                          <label className="label">Customer</label>
-                          <select
-                            className="input w-full"
-                            value={receivableCustomerId}
-                            onChange={(e) => {
-                              setReceivableCustomerId(e.target.value);
-                              setReferenceId('');
-                              setAmount('');
-                            }}
-                            required
-                          >
-                            <option value="">Select customer…</option>
-                            {(options.customers_with_balance || []).map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name} — Balance: {fmt(c.total_due)}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                      {receivableMode === 'branch' && (
-                        <div>
-                          <label className="label">Branch</label>
-                          <select
-                            className="input w-full"
-                            value={receivableBranchId}
-                            onChange={(e) => {
-                              setReceivableBranchId(e.target.value);
-                              setReferenceId('');
-                              setAmount('');
-                            }}
-                            required
-                          >
-                            <option value="">Select branch…</option>
-                            {(branches || []).map((b) => (
-                              <option key={b.id} value={b.id}>
-                                {b.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                      {(receivableMode === 'customer' ? receivableCustomerId : receivableBranchId) && (
-                        <div>
-                          <label className="label">Receivable</label>
-                          <select
-                            className="input w-full"
-                            value={referenceId}
-                            onChange={(e) => {
-                              setReferenceId(e.target.value);
-                              const s = openReceivables.find((x) => String(x.id) === e.target.value);
-                              if (s) setAmount(String(s.amount ?? ''));
-                            }}
-                            required
-                          >
-                            <option value="">Select receivable…</option>
-                            {openReceivables.map((r) => (
-                              <option key={r.id} value={r.id}>
-                                {r.branch_name || '–'} — Due: {fmt(r.amount)} {r.due_date ? `(${r.due_date})` : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {category !== 'receivable_recovery' && (
+                  {category && (
                   <div>
                     <label className="label">
-                      {category === 'supplier'
-                        ? 'Supplier'
-                        : category === 'rent_bill'
+                        {category === 'rent_bill'
                         ? 'Rent / Bill'
                         : 'Salary record'}
                     </label>
@@ -370,12 +165,6 @@ export default function Payments() {
                       required
                     >
                       <option value="">Select…</option>
-                      {category === 'supplier' &&
-                        (options.suppliers || []).map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
                       {category === 'rent_bill' &&
                         (options.rent_bills || []).map((r) => (
                           <option key={r.id} value={r.id}>
@@ -389,6 +178,7 @@ export default function Payments() {
                           </option>
                         ))}
                     </select>
+                  </div>
                   </div>
                   )}
 
@@ -439,9 +229,7 @@ export default function Payments() {
                         ))}
                       </select>
                       <p className="text-xs text-slate-500 mt-1">
-                        {category === 'receivable_recovery'
-                          ? 'Record receipt as cash or deposit to selected bank.'
-                          : 'Select bank to deduct from; cash does not affect bank balance.'}
+                        Select bank to deduct from; cash does not affect bank balance.
                       </p>
                     </div>
                     <div>
@@ -457,7 +245,7 @@ export default function Payments() {
 
                   <div className="pt-2">
                     <button type="submit" className="btn-primary" disabled={submitting}>
-                      {submitting ? 'Processing…' : category === 'receivable_recovery' ? 'Receive' : 'Pay'}
+                      {submitting ? 'Processing…' : 'Pay'}
                     </button>
                   </div>
                 </>
@@ -469,17 +257,6 @@ export default function Payments() {
             <h3 className="text-sm font-semibold text-slate-800 mb-3 flex items-center gap-2">
               <Landmark className="w-4 h-4 text-primary-600" /> Summary
             </h3>
-            {category === 'supplier' && selectedSub && (
-              <div className="space-y-1 text-sm">
-                <p className="text-slate-700 font-medium">{selectedSub.name}</p>
-                <p className="text-slate-500">
-                  Balance:{' '}
-                  <span className="font-semibold text-slate-900">
-                    {supplierBalance != null ? fmt(supplierBalance) : '…'}
-                  </span>
-                </p>
-              </div>
-            )}
             {category === 'rent_bill' && selectedSub && (
               <div className="space-y-1 text-sm">
                 <p className="text-slate-700 font-medium">{selectedSub.title}</p>
@@ -529,26 +306,6 @@ export default function Payments() {
                   <span className="font-semibold text-slate-900">
                     {fmt(selectedSub.remaining_amount ?? selectedSub.net_salary)}
                   </span>
-                </p>
-              </div>
-            )}
-            {category === 'receivable_recovery' && selectedCustomerRec && (
-              <div className="space-y-1 text-sm">
-                <p className="text-slate-700 font-medium">{selectedCustomerRec.name}</p>
-                <p className="text-slate-500">
-                  Balance:{' '}
-                  <span className="font-semibold text-slate-900">
-                    {fmt(selectedCustomerRec.total_due)}
-                  </span>
-                </p>
-                <p className="text-xs text-slate-500">Select receivable and amount, then Receive. Cash/bank will be updated.</p>
-              </div>
-            )}
-            {category === 'receivable_recovery' && !selectedCustomerRec && selectedBranchRec && (
-              <div className="space-y-1 text-sm">
-                <p className="text-slate-700 font-medium">{selectedBranchRec.name}</p>
-                <p className="text-xs text-slate-500">
-                  Select a receivable for this branch and amount, then Receive. Cash/bank and branch receivables ledger will be updated.
                 </p>
               </div>
             )}

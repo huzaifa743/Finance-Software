@@ -6,9 +6,8 @@ import { getNextVoucherNumber, appendVoucherNote } from '../utils/autoNumbering.
 
 const router = Router();
 
-// Options for payment form: suppliers, rent_bills (unpaid), salary records (pending), customers with balance (receive)
+// Options for payment form: rent_bills (unpaid), salary records (with remaining), banks
 router.get('/options', authenticate, (req, res) => {
-  const suppliers = db.prepare('SELECT id, name FROM suppliers ORDER BY name').all();
   const rentBills = db.prepare(`
     SELECT id, title, category, amount, paid_amount, (amount - COALESCE(paid_amount, 0)) as balance, status, due_date
     FROM rent_bills
@@ -41,17 +40,8 @@ router.get('/options', authenticate, (req, res) => {
     WHERE (sr.net_salary - COALESCE(p.paid_amount, 0)) > 0
     ORDER BY sr.month_year DESC, s.name
   `).all();
-  const customersWithBalance = db.prepare(`
-    SELECT c.id, c.name,
-      COALESCE(SUM(CASE WHEN r.status IN ('pending','partial') THEN r.amount ELSE 0 END), 0) as total_due
-    FROM customers c
-    LEFT JOIN receivables r ON r.customer_id = c.id
-    GROUP BY c.id, c.name
-    HAVING total_due > 0
-    ORDER BY c.name
-  `).all();
   const banks = db.prepare('SELECT id, name, account_number FROM banks ORDER BY name').all();
-  res.json({ suppliers, rent_bills: rentBills, salaries, customers_with_balance: customersWithBalance, banks });
+  res.json({ rent_bills: rentBills, salaries, banks });
 });
 
 // List recent payments (all types), with optional filters and enriched reference_label
@@ -92,7 +82,8 @@ router.post('/', authenticate, requireNotAuditor, logActivity('payment', 'paymen
     const { category, reference_id, amount, payment_date, payment_method, remarks } = req.body;
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) return res.status(400).json({ error: 'Invalid amount.' });
-    const validCategories = ['supplier', 'rent_bill', 'salary', 'receivable_recovery'];
+    // Only allow payments for rent/bills and salaries from this screen
+    const validCategories = ['rent_bill', 'salary'];
     if (!validCategories.includes(category)) return res.status(400).json({ error: 'Invalid category.' });
     if (!reference_id) return res.status(400).json({ error: 'reference_id required.' });
 
@@ -104,10 +95,7 @@ router.post('/', authenticate, requireNotAuditor, logActivity('payment', 'paymen
     const voucher = getNextVoucherNumber();
     const voucherRemarks = appendVoucherNote(remarks, voucher);
 
-    if (category === 'supplier') {
-      const sup = db.prepare('SELECT id FROM suppliers WHERE id = ?').get(reference_id);
-      if (!sup) return res.status(404).json({ error: 'Supplier not found.' });
-    } else if (category === 'rent_bill') {
+    if (category === 'rent_bill') {
       const rb = db.prepare('SELECT * FROM rent_bills WHERE id = ?').get(reference_id);
       if (!rb) return res.status(404).json({ error: 'Rent/Bill not found.' });
       const balance = (parseFloat(rb.amount) || 0) - (parseFloat(rb.paid_amount) || 0);
@@ -129,40 +117,6 @@ router.post('/', authenticate, requireNotAuditor, logActivity('payment', 'paymen
       if (amt > remainingSalary) {
         return res.status(400).json({ error: `Amount exceeds remaining salary (${remainingSalary}).` });
       }
-    } else if (category === 'receivable_recovery') {
-      const rec = db.prepare('SELECT * FROM receivables WHERE id = ?').get(reference_id);
-      if (!rec) return res.status(404).json({ error: 'Receivable not found.' });
-      const due = parseFloat(rec.amount) || 0;
-      if (amt > due) return res.status(400).json({ error: `Amount exceeds due (${due}).` });
-    }
-
-    if (category === 'receivable_recovery') {
-      const rec = db.prepare('SELECT * FROM receivables WHERE id = ?').get(reference_id);
-      const remaining = parseFloat(rec.amount) - amt;
-      const newStatus = remaining <= 0 ? 'recovered' : 'partial';
-      db.prepare('INSERT INTO receivable_recoveries (receivable_id, amount, remarks) VALUES (?, ?, ?)').run(
-        reference_id, amt, voucherRemarks || null
-      );
-      db.prepare('UPDATE receivables SET amount = ?, status = ? WHERE id = ?').run(Math.max(0, remaining), newStatus, reference_id);
-    } else if (category === 'supplier') {
-      // Allocate supplier payment across open purchases (FIFO by date)
-      let remaining = amt;
-      const purchases = db.prepare(`
-        SELECT * FROM purchases
-        WHERE supplier_id = ? AND balance > 0
-        ORDER BY purchase_date ASC, id ASC
-      `).all(reference_id);
-      const updateStmt = db.prepare('UPDATE purchases SET paid_amount = ?, balance = ? WHERE id = ?');
-      for (const p of purchases) {
-        if (remaining <= 0) break;
-        const currentBalance = parseFloat(p.balance) || 0;
-        if (currentBalance <= 0) continue;
-        const apply = Math.min(remaining, currentBalance);
-        const newPaid = (parseFloat(p.paid_amount) || 0) + apply;
-        const newBalance = Math.max(0, currentBalance - apply);
-        updateStmt.run(newPaid, newBalance, p.id);
-        remaining -= apply;
-      }
     }
 
     if (isBank && bankId) {
@@ -173,18 +127,18 @@ router.post('/', authenticate, requireNotAuditor, logActivity('payment', 'paymen
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(
         bankId,
-        category === 'receivable_recovery' ? 'deposit' : 'payment',
+        'payment',
         amt,
         paymentDate,
         voucherRemarks || voucher,
-        category === 'receivable_recovery' ? `Receivable recovery #${reference_id}` : `Payment ${category} #${reference_id}`
+        `Payment ${category} #${reference_id}`
       );
     }
 
     db.prepare(`
       INSERT INTO payments (type, reference_id, reference_type, amount, payment_date, mode, bank_id, remarks)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(category, reference_id, category === 'receivable_recovery' ? 'receivable' : category, amt, paymentDate, mode, bankId, voucherRemarks || null);
+    `).run(category, reference_id, category, amt, paymentDate, mode, bankId, voucherRemarks || null);
 
     if (category === 'rent_bill') {
       const rb = db.prepare('SELECT * FROM rent_bills WHERE id = ?').get(reference_id);
