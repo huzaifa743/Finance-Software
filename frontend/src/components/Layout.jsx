@@ -23,19 +23,32 @@ import {
   FileText,
 } from 'lucide-react';
 
-// Sidebar: Overview → Setup → Income → Expenses → Payments → Operations → Reports → Admin
+// Sidebar order: Overview → Setup → Income → Expenses → Payments → Operations → Reports → Admin
 const nav = [
+  // Overview
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+
+  // Setup (masters)
   { path: '/branches', label: 'Branches', icon: Building2 },
   { path: '/banks', label: 'Banks', icon: Landmark },
-  { path: '/suppliers', label: 'Suppliers', icon: Users },
   { path: '/inventory', label: 'Inventory', icon: Boxes },
+  { path: '/suppliers', label: 'Suppliers', icon: Users },
+  { path: '/staff', label: 'Staff, Salary, Rent & Bills', icon: Users },
+
+  // Income
   { path: '/sales', label: 'Sales', icon: ShoppingCart },
   { path: '/receivables', label: 'Receivables', icon: Receipt },
+
+  // Expenses
   { path: '/purchases', label: 'Purchases', icon: Truck },
-  { path: '/staff', label: 'Staff, Salary, Rent & Bills', icon: Users },
+
+  // Payments
   { path: '/payments', label: 'Payments', icon: CreditCard },
+
+  // Reports
   { path: '/reports', label: 'Reports & Analytics', icon: BarChart3 },
+
+  // Admin
   { path: '/users', label: 'Users & Roles', icon: Shield },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];
