@@ -17,6 +17,7 @@ export default function RentBills() {
   const [ledgerModal, setLedgerModal] = useState(false);
   const [ledgerData, setLedgerData] = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerCategory, setLedgerCategory] = useState('');
   const [query, setQuery] = useState('');
 
   const load = () => api.get('/rent-bills').then(setList).catch((e) => setErr(e.message));
@@ -187,7 +188,25 @@ export default function RentBills() {
           <p className="text-slate-500 mt-1">Add rent and bills with optional documents. Pay from Payments.</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={async () => { setLedgerModal(true); setLedgerData(null); setLedgerLoading(true); try { const d = await api.get('/rent-bills/ledger'); setLedgerData(d); } catch (e) { setErr(e.message); } finally { setLedgerLoading(false); } }} className="btn-secondary"><BookOpen className="w-4 h-4" /> Ledger</button>
+          <button
+            onClick={async () => {
+              setLedgerModal(true);
+              setLedgerData(null);
+              setLedgerLoading(true);
+              setLedgerCategory('');
+              try {
+                const d = await api.get('/rent-bills/ledger');
+                setLedgerData(d);
+              } catch (e) {
+                setErr(e.message);
+              } finally {
+                setLedgerLoading(false);
+              }
+            }}
+            className="btn-secondary"
+          >
+            <BookOpen className="w-4 h-4" /> Ledger
+          </button>
           <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Rent / Bill</button>
         </div>
       </div>
@@ -305,12 +324,37 @@ export default function RentBills() {
           <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
             <h2 className="text-xl font-semibold text-slate-900">Rent & Bills Ledger</h2>
             <div className="flex items-center gap-2">
+              <select
+                className="input text-sm w-32"
+                value={ledgerCategory}
+                onChange={async (e) => {
+                  const v = e.target.value;
+                  setLedgerCategory(v);
+                  setLedgerLoading(true);
+                  setErr('');
+                  try {
+                    const qs = v ? `?category=${encodeURIComponent(v)}` : '';
+                    const d = await api.get(`/rent-bills/ledger${qs}`);
+                    setLedgerData(d);
+                  } catch (error) {
+                    setErr(error.message);
+                  } finally {
+                    setLedgerLoading(false);
+                  }
+                }}
+              >
+                <option value="">All</option>
+                <option value="rent">Rent only</option>
+                <option value="bill">Bills only</option>
+              </select>
               <button
                 onClick={async () => {
                   try {
                     setErr('');
                     const token = localStorage.getItem('token');
-                    const res = await fetch('/api/rent-bills/ledger/export?type=xlsx', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+                    const q = new URLSearchParams({ type: 'xlsx' });
+                    if (ledgerCategory) q.set('category', ledgerCategory);
+                    const res = await fetch(`/api/rent-bills/ledger/export?${q.toString()}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
                     if (!res.ok) {
                       const d = await res.json().catch(() => ({}));
                       throw new Error(d.error || res.statusText || 'Export failed');
@@ -365,7 +409,9 @@ export default function RentBills() {
                       return;
                     }
                     const token = localStorage.getItem('token');
-                    const res = await fetch('/api/rent-bills/ledger/export?type=pdf', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+                    const q = new URLSearchParams({ type: 'pdf' });
+                    if (ledgerCategory) q.set('category', ledgerCategory);
+                    const res = await fetch(`/api/rent-bills/ledger/export?${q.toString()}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
                     if (!res.ok) {
                       const d = await res.json().catch(() => ({}));
                       throw new Error(d.error || res.statusText || 'Export failed');

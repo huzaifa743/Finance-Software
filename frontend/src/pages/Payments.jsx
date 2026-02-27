@@ -114,6 +114,8 @@ export default function Payments() {
       ? (Number(selectedSub.balance) || 0)
       : category === 'receivable_recovery' && selectedSub
       ? (Number(selectedSub.amount) || 0)
+      : category === 'salary' && selectedSub
+      ? (Number(selectedSub.remaining_amount ?? selectedSub.net_salary) || 0)
       : null;
 
   useEffect(() => {
@@ -363,7 +365,7 @@ export default function Payments() {
                         setReferenceId(e.target.value);
                         const s = subOptions().find((x) => String(x.id) === e.target.value);
                         if (category === 'rent_bill' && s) setAmount(String(s.balance ?? ''));
-                        if (category === 'salary' && s) setAmount(String(s.net_salary ?? ''));
+                        if (category === 'salary' && s) setAmount(String((s.remaining_amount ?? s.net_salary) ?? ''));
                       }}
                       required
                     >
@@ -525,7 +527,7 @@ export default function Payments() {
                 <p className="text-slate-500">
                   Remaining (this salary):{' '}
                   <span className="font-semibold text-slate-900">
-                    {fmt(selectedSub.net_salary)}
+                    {fmt(selectedSub.remaining_amount ?? selectedSub.net_salary)}
                   </span>
                 </p>
               </div>

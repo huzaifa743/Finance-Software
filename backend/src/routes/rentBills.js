@@ -38,7 +38,15 @@ router.get('/', authenticate, (req, res) => {
 
 // Ledger: all rent/bills with their payments (must be before /:id)
 router.get('/ledger', authenticate, (req, res) => {
-  const bills = db.prepare('SELECT * FROM rent_bills ORDER BY due_date ASC, id DESC').all();
+  const { category } = req.query;
+  let sql = 'SELECT * FROM rent_bills WHERE 1=1';
+  const params = [];
+  if (category) {
+    sql += ' AND category = ?';
+    params.push(category);
+  }
+  sql += ' ORDER BY due_date ASC, id DESC';
+  const bills = db.prepare(sql).all(...params);
   const payments = db.prepare(`
     SELECT p.*, b.name as bank_name
     FROM payments p
@@ -65,10 +73,17 @@ router.get('/ledger', authenticate, (req, res) => {
 });
 
 router.get('/ledger/export', authenticate, async (req, res) => {
-  const { type } = req.query;
+  const { type, category } = req.query;
   if (!type) return res.status(400).json({ error: 'type is required (pdf or xlsx)' });
 
-  const bills = db.prepare('SELECT * FROM rent_bills ORDER BY due_date ASC, id DESC').all();
+  let sql = 'SELECT * FROM rent_bills WHERE 1=1';
+  const params = [];
+  if (category) {
+    sql += ' AND category = ?';
+    params.push(category);
+  }
+  sql += ' ORDER BY due_date ASC, id DESC';
+  const bills = db.prepare(sql).all(...params);
   const payments = db.prepare(`
     SELECT p.*, b.name as bank_name
     FROM payments p
@@ -90,19 +105,22 @@ router.get('/ledger/export', authenticate, async (req, res) => {
     return { bill: b, payments: billPayments, totalAmount, totalPaid, balance };
   });
 
-  const filename = `rent-bills-ledger-${new Date().toISOString().slice(0, 10)}`;
+  const datePart = new Date().toISOString().slice(0, 10);
+  const scope = category ? (category === 'rent' ? 'rent' : 'bills') : 'all';
+  const filename = `rent-bills-ledger-${scope}-${datePart}`;
   const company = getCompanySettings(db);
 
   if (type === 'xlsx') {
     const wb = new ExcelJS.Workbook();
     wb.creator = company.companyName || 'Finance Software';
     const ws = wb.addWorksheet('Rent & Bills Ledger');
-    addExcelCompanyHeader(ws, company, 'Rent & Bills Ledger', wb);
+    const title = category === 'rent' ? 'Rent Ledger' : category === 'bill' ? 'Bills Ledger' : 'Rent & Bills Ledger';
+    addExcelCompanyHeader(ws, company, title, wb);
     ws.addRow(['Title', 'Category', 'Amount', 'Paid', 'Balance', 'Due Date', 'Status']);
     ws.lastRow.font = { bold: true };
     items.forEach((i) => ws.addRow([i.bill.title, i.bill.category || 'bill', i.totalAmount, i.totalPaid, i.balance, i.bill.due_date || '', i.bill.status || 'pending']));
     const summary = wb.addWorksheet('Summary');
-    addExcelCompanyHeader(summary, company, 'Rent & Bills Ledger', wb);
+    addExcelCompanyHeader(summary, company, title, wb);
     summary.addRow(['Total amount', items.reduce((a, x) => a + x.totalAmount, 0)]);
     summary.addRow(['Total paid', items.reduce((a, x) => a + x.totalPaid, 0)]);
     summary.addRow(['Total balance', items.reduce((a, x) => a + x.balance, 0)]);

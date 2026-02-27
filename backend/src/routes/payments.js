@@ -26,11 +26,19 @@ router.get('/options', authenticate, (req, res) => {
       sr.deductions,
       sr.net_salary,
       s.name as staff_name,
-      b.name as branch_name
+      b.name as branch_name,
+      COALESCE(p.paid_amount, 0) AS paid_amount,
+      (sr.net_salary - COALESCE(p.paid_amount, 0)) AS remaining_amount
     FROM salary_records sr
     JOIN staff s ON sr.staff_id = s.id
     LEFT JOIN branches b ON s.branch_id = b.id
-    WHERE sr.status = 'processed'
+    LEFT JOIN (
+      SELECT reference_id AS salary_id, COALESCE(SUM(amount), 0) AS paid_amount
+      FROM payments
+      WHERE reference_type = 'salary'
+      GROUP BY reference_id
+    ) p ON p.salary_id = sr.id
+    WHERE (sr.net_salary - COALESCE(p.paid_amount, 0)) > 0
     ORDER BY sr.month_year DESC, s.name
   `).all();
   const customersWithBalance = db.prepare(`
@@ -107,7 +115,20 @@ router.post('/', authenticate, requireNotAuditor, logActivity('payment', 'paymen
     } else if (category === 'salary') {
       const sr = db.prepare('SELECT * FROM salary_records WHERE id = ?').get(reference_id);
       if (!sr) return res.status(404).json({ error: 'Salary record not found.' });
-      if (sr.status === 'paid') return res.status(400).json({ error: 'Salary already paid.' });
+      const paidRow = db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) as t
+        FROM payments
+        WHERE reference_type = 'salary' AND reference_id = ?
+      `).get(reference_id);
+      const alreadyPaid = parseFloat(paidRow?.t) || 0;
+      const totalSalary = parseFloat(sr.net_salary) || 0;
+      const remainingSalary = totalSalary - alreadyPaid;
+      if (remainingSalary <= 0) {
+        return res.status(400).json({ error: 'Salary already fully paid.' });
+      }
+      if (amt > remainingSalary) {
+        return res.status(400).json({ error: `Amount exceeds remaining salary (${remainingSalary}).` });
+      }
     } else if (category === 'receivable_recovery') {
       const rec = db.prepare('SELECT * FROM receivables WHERE id = ?').get(reference_id);
       if (!rec) return res.status(404).json({ error: 'Receivable not found.' });
@@ -173,7 +194,17 @@ router.post('/', authenticate, requireNotAuditor, logActivity('payment', 'paymen
       db.prepare('UPDATE rent_bills SET paid_amount = ?, status = ?, updated_at = ? WHERE id = ?')
         .run(newPaid, newStatus, new Date().toISOString(), reference_id);
     } else if (category === 'salary') {
-      db.prepare("UPDATE salary_records SET status = 'paid' WHERE id = ?").run(reference_id);
+      const sr = db.prepare('SELECT net_salary FROM salary_records WHERE id = ?').get(reference_id);
+      const paidRow = db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) as t
+        FROM payments
+        WHERE reference_type = 'salary' AND reference_id = ?
+      `).get(reference_id);
+      const totalSalary = parseFloat(sr?.net_salary) || 0;
+      const paidTotal = parseFloat(paidRow?.t) || 0;
+      const remainingSalary = totalSalary - paidTotal;
+      const newStatus = remainingSalary <= 0 ? 'paid' : 'partial';
+      db.prepare('UPDATE salary_records SET status = ? WHERE id = ?').run(newStatus, reference_id);
     }
 
     res.status(201).json({ ok: true, amount: amt, category });

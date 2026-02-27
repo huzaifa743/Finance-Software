@@ -70,9 +70,11 @@ router.get('/', authenticate, (req, res) => {
   const payables = db.prepare(`
     SELECT COALESCE(SUM(balance), 0) as t FROM purchases WHERE balance > 0
   `).get();
+  // Total paid = only cash/bank outflows (exclude receivable recoveries/receipts)
   const totalPaidAll = db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as t
     FROM payments
+    WHERE type IN ('supplier', 'rent_bill', 'salary')
   `).get();
   const receivableRecoveredTotal = db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as t
