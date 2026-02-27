@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { Plus, Pencil, Trash2, Paperclip, BookOpen, FileDown, Printer } from 'lucide-react';
+import { Plus, Pencil, Trash2, Paperclip, BookOpen, FileDown, Printer, Search } from 'lucide-react';
 import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 
 export default function RentBills() {
@@ -9,7 +9,7 @@ export default function RentBills() {
   const [err, setErr] = useState('');
   const [modal, setModal] = useState(null);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ title: '', category: 'bill', amount: '', due_date: '', remarks: '' });
+  const [form, setForm] = useState({ title: '', category: 'bill', amount: '', remarks: '' });
   const [attachmentsModal, setAttachmentsModal] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -22,6 +22,9 @@ export default function RentBills() {
   const [entryLedgerData, setEntryLedgerData] = useState(null);
   const [entryLedgerLoading, setEntryLedgerLoading] = useState(false);
   const [query, setQuery] = useState('');
+  const [ledgerQuery, setLedgerQuery] = useState('');
+  const [processBill, setProcessBill] = useState(null);
+  const [processForm, setProcessForm] = useState({ month_year: '', amount: '' });
 
   const load = () => api.get('/rent-bills').then(setList).catch((e) => setErr(e.message));
 
@@ -30,7 +33,7 @@ export default function RentBills() {
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ title: '', category: 'bill', amount: '', due_date: '', remarks: '' });
+    setForm({ title: '', category: 'bill', amount: '', remarks: '' });
     setModal('add');
   };
 
@@ -40,7 +43,6 @@ export default function RentBills() {
       title: r.title,
       category: r.category || 'bill',
       amount: r.amount ?? '',
-      due_date: r.due_date || '',
       remarks: r.remarks || '',
     });
     setModal('edit');
@@ -120,6 +122,30 @@ export default function RentBills() {
 
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+  const openProcess = (bill) => {
+    const now = new Date();
+    const my = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    setProcessBill(bill);
+    setProcessForm({
+      month_year: my,
+      amount: bill.amount ?? '',
+    });
+  };
+
+  const processRentBill = async (e) => {
+    e.preventDefault();
+    if (!processBill) return;
+    setErr('');
+    try {
+      await api.post(`/rent-bills/${processBill.id}/process`, processForm);
+      setProcessBill(null);
+      setProcessForm({ month_year: '', amount: '' });
+      load();
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
   const openEntryLedger = async (bill) => {
     setEntryLedgerModal(bill);
     setEntryLedgerData(null);
@@ -174,64 +200,58 @@ export default function RentBills() {
         'Rent & Bills Ledger',
         entryLedgerModal.title
       );
-      const bill = entryLedgerData.bill || {};
+      const salaries = entryLedgerData.salaries || [];
       const payments = entryLedgerData.payments || [];
       const body = `
         <p class="summary-line">
           Total amount: <strong>${fmt(entryLedgerData.totalAmount)}</strong>
           &nbsp;|&nbsp; Total paid: <strong>${fmt(entryLedgerData.totalPaid)}</strong>
-          &nbsp;|&nbsp; Balance: <strong>${fmt(entryLedgerData.balance)}</strong>
+          &nbsp;|&nbsp; Pending: <strong>${fmt(entryLedgerData.pending)}</strong>
         </p>
-        <h2>Bill</h2>
+        <h2>Monthly records</h2>
         <table>
           <thead>
             <tr>
-              <th>Title</th>
-              <th>Category</th>
+              <th>Month</th>
               <th class="text-right">Amount</th>
               <th class="text-right">Paid</th>
-              <th class="text-right">Balance</th>
-              <th>Due Date</th>
+              <th class="text-right">Remaining</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>${bill.title || '–'}</td>
-              <td>${bill.category || 'bill'}</td>
-              <td class="text-right font-mono">${fmt(entryLedgerData.totalAmount)}</td>
-              <td class="text-right font-mono">${fmt(entryLedgerData.totalPaid)}</td>
-              <td class="text-right font-mono">${fmt(entryLedgerData.balance)}</td>
-              <td>${bill.due_date || '–'}</td>
-              <td>${bill.status || 'pending'}</td>
-            </tr>
+            ${salaries.map((r) => `
+              <tr>
+                <td>${r.month_year || '–'}</td>
+                <td class="text-right font-mono">${fmt(r.amount)}</td>
+                <td class="text-right font-mono">${fmt(r.paid_amount ?? 0)}</td>
+                <td class="text-right font-mono">${fmt(r.remaining_amount ?? 0)}</td>
+                <td>${r.status || 'pending'}</td>
+              </tr>
+            `).join('')}
           </tbody>
         </table>
         <h2>Payments</h2>
         <table>
           <thead>
             <tr>
-              <th>Date</th>
+              <th>Payment Date</th>
+              <th>Month</th>
               <th>Mode</th>
-              <th>Bank</th>
               <th class="text-right">Amount</th>
               <th>Remarks</th>
             </tr>
           </thead>
           <tbody>
-            ${payments
-              .map(
-                (p) => `
+            ${payments.map((p) => `
               <tr>
                 <td>${p.payment_date || ''}</td>
+                <td>${p.month_year || '–'}</td>
                 <td>${p.mode === 'bank' ? 'Bank' : 'Cash'}</td>
-                <td>${p.bank_name || '–'}</td>
                 <td class="text-right font-mono">${fmt(p.amount)}</td>
                 <td>${p.remarks || '–'}</td>
               </tr>
-            `
-              )
-              .join('')}
+            `).join('')}
           </tbody>
         </table>
       `;
@@ -312,12 +332,32 @@ export default function RentBills() {
       })
     : byCategory;
 
+  const ledgerNeedle = ledgerQuery.trim().toLowerCase();
+  const filteredEntrySalaries = entryLedgerData?.salaries
+    ? (ledgerNeedle
+        ? entryLedgerData.salaries.filter((r) => {
+            const hay = [r.month_year, r.amount, r.paid_amount, r.remaining_amount, r.status].map(normalize).join(' ');
+            return hay.includes(ledgerNeedle);
+          })
+        : entryLedgerData.salaries)
+    : [];
+  const filteredEntryPayments = entryLedgerData?.payments
+    ? (ledgerNeedle
+        ? entryLedgerData.payments.filter((p) => {
+            const hay = [p.payment_date, p.month_year, p.mode, p.amount, p.remarks].map(normalize).join(' ');
+            return hay.includes(ledgerNeedle);
+          })
+        : entryLedgerData.payments)
+    : [];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Rent & Bills</h1>
-          <p className="text-slate-500 mt-1">Add rent and bills with optional documents. Pay from Payments.</p>
+          <p className="text-slate-500 mt-1">
+            Add rent and bills once, attach documents, then process each month from the action column. Pay from the Payments screen.
+          </p>
         </div>
         <div className="flex gap-2">
           <button
@@ -392,6 +432,13 @@ export default function RentBills() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
+                        onClick={() => openProcess(r)}
+                        className="btn-primary text-xs mr-1 inline-flex items-center gap-1"
+                        title="Process monthly rent / bill"
+                      >
+                        Process
+                      </button>
+                      <button
                         onClick={() => openEntryLedger(r)}
                         className="p-1.5 text-slate-500 hover:text-primary-600"
                         title="Ledger"
@@ -414,7 +461,9 @@ export default function RentBills() {
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">{modal === 'add' ? 'Add Rent / Bill' : 'Edit Rent / Bill'}</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">
+              {modal === 'add' ? 'Add Rent / Bill' : 'Edit Rent / Bill'}
+            </h2>
             <form onSubmit={save} className="space-y-4">
               <div><label className="label">Title *</label><input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required placeholder="e.g. Office Rent Jan 2025" /></div>
               <div>
@@ -425,7 +474,6 @@ export default function RentBills() {
                 </select>
               </div>
               <div><label className="label">Amount *</label><input type="number" step="0.01" className="input" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required /></div>
-              <div><label className="label">Due Date</label><input type="date" className="input" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /></div>
               <div><label className="label">Remarks</label><input className="input" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} /></div>
               <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Save</button><button type="button" onClick={() => { setModal(null); setEditing(null); }} className="btn-secondary">Cancel</button></div>
             </form>
@@ -613,7 +661,7 @@ export default function RentBills() {
 
       {entryLedgerModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="card w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
+          <div className="card w-full max-w-5xl p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900 mb-1">
@@ -621,9 +669,7 @@ export default function RentBills() {
                 </h2>
                 {entryLedgerData && (
                   <p className="text-sm text-slate-600">
-                    Total amount: {fmt(entryLedgerData.totalAmount)} • Total paid:{' '}
-                    {fmt(entryLedgerData.totalPaid)} • Balance:{' '}
-                    {fmt(entryLedgerData.balance)}
+                    Total amount: {fmt(entryLedgerData.totalAmount)} • Total paid: {fmt(entryLedgerData.totalPaid)} • Pending: {fmt(entryLedgerData.pending)}
                   </p>
                 )}
               </div>
@@ -657,6 +703,7 @@ export default function RentBills() {
                   onClick={() => {
                     setEntryLedgerModal(null);
                     setEntryLedgerData(null);
+                    setLedgerQuery('');
                   }}
                   className="btn-secondary text-xs"
                 >
@@ -671,75 +718,125 @@ export default function RentBills() {
 
             {entryLedgerData && !entryLedgerLoading && (
               <>
-                <div className="mt-4 mb-4 p-4 bg-slate-50 rounded-lg text-sm">
-                  <p className="font-semibold text-slate-800">
-                    {entryLedgerData.bill?.title}
-                  </p>
-                  <p className="text-slate-600">
-                    Category: {entryLedgerData.bill?.category || 'bill'} • Due:{' '}
-                    {entryLedgerData.bill?.due_date || '–'} • Status:{' '}
-                    {entryLedgerData.bill?.status || 'pending'}
-                  </p>
-                  {entryLedgerData.bill?.remarks && (
-                    <p className="text-slate-500 mt-1">
-                      Remarks: {entryLedgerData.bill.remarks}
-                    </p>
-                  )}
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                    <Search className="w-4 h-4 text-slate-500" />
+                    <span>Search</span>
+                  </div>
+                  <input
+                    className="input w-full md:w-[520px]"
+                    placeholder="Search ledger by month, amount, status, remarks"
+                    value={ledgerQuery}
+                    onChange={(e) => setLedgerQuery(e.target.value)}
+                  />
                 </div>
 
-                <h3 className="text-sm font-semibold text-slate-800 mb-2">
-                  Payments
-                </h3>
-                <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <div className="overflow-x-auto mt-4">
                   <table className="w-full text-sm">
                     <thead className="bg-slate-50 border-b border-slate-200">
                       <tr>
-                        <th className="text-left px-4 py-2 font-medium text-slate-700">
-                          Date
-                        </th>
-                        <th className="text-left px-4 py-2 font-medium text-slate-700">
-                          Mode
-                        </th>
-                        <th className="text-left px-4 py-2 font-medium text-slate-700">
-                          Bank
-                        </th>
-                        <th className="text-right px-4 py-2 font-medium text-slate-700">
-                          Amount
-                        </th>
-                        <th className="text-left px-4 py-2 font-medium text-slate-700">
-                          Remarks
-                        </th>
+                        <th className="text-left px-3 py-2">Month</th>
+                        <th className="text-right px-3 py-2">Amount</th>
+                        <th className="text-right px-3 py-2">Paid (total)</th>
+                        <th className="text-right px-3 py-2">Remaining</th>
+                        <th className="text-left px-3 py-2">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
-                      {(entryLedgerData.payments || []).map((p) => (
-                        <tr key={p.id}>
-                          <td className="px-4 py-2">{p.payment_date}</td>
-                          <td className="px-4 py-2">
-                            {p.mode === 'bank' ? 'Bank' : 'Cash'}
-                          </td>
-                          <td className="px-4 py-2">
-                            {p.bank_name || '–'}
-                          </td>
-                          <td className="px-4 py-2 text-right font-mono">
-                            {fmt(p.amount)}
-                          </td>
-                          <td className="px-4 py-2">
-                            {p.remarks || '–'}
-                          </td>
+                      {filteredEntrySalaries.map((r) => (
+                        <tr key={r.id}>
+                          <td className="px-3 py-2">{r.month_year || '–'}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(r.amount)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(r.paid_amount ?? 0)}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(r.remaining_amount ?? 0)}</td>
+                          <td className="px-3 py-2">{r.status}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  {(!entryLedgerData.payments ||
-                    !entryLedgerData.payments.length) && (
-                    <p className="p-4 text-sm text-slate-500 text-center">
-                      No payments yet.
-                    </p>
+                  {!filteredEntrySalaries.length && (
+                    <p className="p-3 text-sm text-slate-500">No monthly records found.</p>
+                  )}
+                </div>
+
+                <div className="overflow-x-auto mt-4">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="text-left px-3 py-2">Payment Date</th>
+                        <th className="text-left px-3 py-2">Month</th>
+                        <th className="text-left px-3 py-2">Mode</th>
+                        <th className="text-right px-3 py-2">Amount</th>
+                        <th className="text-left px-3 py-2">Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {filteredEntryPayments.map((p) => (
+                        <tr key={p.id}>
+                          <td className="px-3 py-2">{p.payment_date}</td>
+                          <td className="px-3 py-2">{p.month_year || '–'}</td>
+                          <td className="px-3 py-2">{p.mode === 'bank' ? 'Bank' : 'Cash'}</td>
+                          <td className="px-3 py-2 text-right font-mono">{fmt(p.amount)}</td>
+                          <td className="px-3 py-2">{p.remarks || '–'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {!filteredEntryPayments.length && (
+                    <p className="p-3 text-sm text-slate-500">No payments found.</p>
                   )}
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {processBill && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="card w-full max-w-md p-6">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">
+              Process Rent / Bill — {processBill.title}
+            </h2>
+            <form onSubmit={processRentBill} className="space-y-4">
+              <div>
+                <label className="label">Month (YYYY-MM) *</label>
+                <input
+                  type="month"
+                  className="input"
+                  value={processForm.month_year}
+                  onChange={(e) => setProcessForm({ ...processForm, month_year: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">Amount *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="input"
+                  value={processForm.amount}
+                  onChange={(e) => setProcessForm({ ...processForm, amount: e.target.value })}
+                  required
+                />
+              </div>
+              <p className="text-xs text-slate-500">
+                This will set the month and amount for this bill entry. You can then pay it from the Payments screen; once fully paid, it cannot be paid again for the same month.
+              </p>
+              <div className="flex gap-3 pt-4">
+                <button type="submit" className="btn-primary">Process</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProcessBill(null);
+                    setProcessForm({ month_year: '', amount: '' });
+                  }}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

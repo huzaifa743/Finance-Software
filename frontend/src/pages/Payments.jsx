@@ -103,6 +103,20 @@ export default function Payments() {
 
   const fmt = (n) => (Number(n) || 0).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+  const selectedSalary = category === 'salary' && selectedSub ? selectedSub : null;
+  let salaryNet = 0;
+  let salaryRemaining = 0;
+  let salaryPaidSoFar = 0;
+  let salaryPayNow = 0;
+  let salaryRemainingAfter = 0;
+  if (selectedSalary) {
+    salaryNet = Number(selectedSalary.net_salary) || 0;
+    salaryRemaining = Number(selectedSalary.remaining_amount ?? selectedSalary.net_salary) || 0;
+    salaryPaidSoFar = Math.max(0, salaryNet - salaryRemaining);
+    salaryPayNow = Number(amount) || 0;
+    salaryRemainingAfter = Math.max(0, salaryRemaining - salaryPayNow);
+  }
+
   if (loading) return <div className="flex items-center justify-center py-20"><div className="h-10 w-10 animate-spin rounded-full border-2 border-primary-600 border-t-transparent" /></div>;
 
   return (
@@ -261,43 +275,61 @@ export default function Payments() {
                 </p>
               </div>
             )}
-            {category === 'salary' && selectedSub && (
+            {category === 'salary' && selectedSalary && (
               <div className="space-y-1 text-sm">
                 <p className="text-slate-700 font-medium">
-                  {selectedSub.staff_name} — {selectedSub.month_year}
+                  {selectedSalary.staff_name} — {selectedSalary.month_year}
                 </p>
                 <p className="text-slate-500">
                   Base:{' '}
                   <span className="font-semibold text-slate-900">
-                    {fmt(selectedSub.base_salary)}
+                    {fmt(selectedSalary.base_salary)}
                   </span>
                   {' · '}
                   Commission:{' '}
                   <span className="font-semibold text-slate-900">
-                    {fmt(selectedSub.commission)}
+                    {fmt(selectedSalary.commission)}
                   </span>
                 </p>
                 <p className="text-slate-500">
                   Advances:{' '}
                   <span className="font-semibold text-slate-900">
-                    {fmt(selectedSub.advances)}
+                    {fmt(selectedSalary.advances)}
                   </span>
                   {' · '}
                   Deductions:{' '}
                   <span className="font-semibold text-slate-900">
-                    {fmt(selectedSub.deductions)}
+                    {fmt(selectedSalary.deductions)}
                   </span>
                 </p>
                 <p className="text-slate-500">
                   Net salary:{' '}
                   <span className="font-semibold text-slate-900">
-                    {fmt(selectedSub.net_salary)}
+                    {fmt(salaryNet)}
                   </span>
                 </p>
                 <p className="text-slate-500">
-                  Remaining (this salary):{' '}
+                  Already paid:{' '}
                   <span className="font-semibold text-slate-900">
-                    {fmt(selectedSub.remaining_amount ?? selectedSub.net_salary)}
+                    {fmt(salaryPaidSoFar)}
+                  </span>
+                </p>
+                <p className="text-slate-500">
+                  Remaining before this payment:{' '}
+                  <span className="font-semibold text-slate-900">
+                    {fmt(salaryRemaining)}
+                  </span>
+                </p>
+                <p className="text-slate-500">
+                  This payment:{' '}
+                  <span className="font-semibold text-slate-900">
+                    {fmt(salaryPayNow)}
+                  </span>
+                </p>
+                <p className="text-slate-500">
+                  Remaining after this payment:{' '}
+                  <span className="font-semibold text-slate-900">
+                    {fmt(salaryRemainingAfter)}
                   </span>
                 </p>
               </div>

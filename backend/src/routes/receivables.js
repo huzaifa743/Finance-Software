@@ -82,6 +82,13 @@ router.get('/ledger/:customerId', authenticate, (req, res) => {
     JOIN receivables r ON rr.receivable_id = r.id
     WHERE r.customer_id = ? ORDER BY rr.recovered_at ASC
   `).all(customerId);
+  const recoveredByReceivable = new Map();
+  recoveries.forEach((rr) => {
+    const key = rr.receivable_id;
+    const amt = parseFloat(rr.amount) || 0;
+    if (!key || !amt) return;
+    recoveredByReceivable.set(key, (recoveredByReceivable.get(key) || 0) + amt);
+  });
   const totalDue = receivables
     .filter(r => r.status === 'pending' || r.status === 'partial')
     .reduce((a, r) => a + (parseFloat(r.amount) || 0), 0);
@@ -91,12 +98,14 @@ router.get('/ledger/:customerId', authenticate, (req, res) => {
   // Build unified ledger entries: Credit (receivables), Debit (recoveries), running Balance
   const entries = [];
   receivables.forEach((r) => {
-    const amt = parseFloat(r.amount) || 0;
+    const remaining = parseFloat(r.amount) || 0;
+    const alreadyRecovered = recoveredByReceivable.get(r.id) || 0;
+    const original = remaining + alreadyRecovered;
     entries.push({
       date: (r.created_at || '').slice(0, 10),
       sortKey: r.created_at || '',
       description: `Receivable${r.id ? ` #${r.id}` : ''}${r.branch_name ? ` (${r.branch_name})` : ''}`,
-      credit: amt,
+      credit: original,
       debit: 0,
       id: `rec-${r.id}`,
       type: 'receivable',
@@ -144,6 +153,14 @@ router.get('/branch-ledger/:branchId', authenticate, (req, res) => {
     ORDER BY rr.recovered_at ASC
   `).all(branchId);
 
+  const recoveredByReceivable = new Map();
+  recoveries.forEach((rr) => {
+    const key = rr.receivable_id;
+    const amt = parseFloat(rr.amount) || 0;
+    if (!key || !amt) return;
+    recoveredByReceivable.set(key, (recoveredByReceivable.get(key) || 0) + amt);
+  });
+
   const totalDue = receivables
     .filter(r => r.status === 'pending' || r.status === 'partial')
     .reduce((a, r) => a + (parseFloat(r.amount) || 0), 0);
@@ -154,12 +171,14 @@ router.get('/branch-ledger/:branchId', authenticate, (req, res) => {
   // Build unified ledger entries: Credit (receivables), Debit (recoveries), running Balance
   const entries = [];
   receivables.forEach((r) => {
-    const amt = parseFloat(r.amount) || 0;
+    const remaining = parseFloat(r.amount) || 0;
+    const alreadyRecovered = recoveredByReceivable.get(r.id) || 0;
+    const original = remaining + alreadyRecovered;
     entries.push({
       date: (r.created_at || '').slice(0, 10),
       sortKey: r.created_at || '',
       description: `Credit sale${r.id ? ` #${r.id}` : ''}${r.branch_name ? ` (${r.branch_name})` : ''}`,
-      credit: amt,
+      credit: original,
       debit: 0,
       id: `branch-rec-${r.id}`,
       type: 'receivable',
@@ -410,19 +429,23 @@ router.get('/branch-ledger', authenticate, (req, res) => {
     SELECT
       b.id as branch_id,
       b.name as branch_name,
-      COALESCE(SUM(r.amount + 0), 0) as credit_sales,
+      COALESCE(SUM(CASE WHEN r.id IS NOT NULL THEN r.amount + COALESCE(rr_sum.total_recovered, 0) ELSE 0 END), 0) as credit_sales,
       COALESCE(SUM(CASE WHEN r.status IN ('pending','partial') THEN r.amount ELSE 0 END), 0) as receivable_amount,
-      COALESCE(SUM(rr.amount), 0) as received_amount
+      COALESCE(SUM(COALESCE(rr_sum.total_recovered, 0)), 0) as received_amount
     FROM branches b
     LEFT JOIN receivables r ON r.branch_id = b.id
-    LEFT JOIN receivable_recoveries rr ON rr.receivable_id = r.id
+    LEFT JOIN (
+      SELECT receivable_id, SUM(amount) as total_recovered
+      FROM receivable_recoveries
+      GROUP BY receivable_id
+    ) rr_sum ON rr_sum.receivable_id = r.id
     WHERE b.is_active = 1 AND ${where}
     GROUP BY b.id, b.name
     ORDER BY b.name
   `).all(...params);
 
   const withBalance = rows.map((r) => {
-    const pending = (parseFloat(r.receivable_amount) || 0) - (parseFloat(r.received_amount) || 0);
+    const pending = parseFloat(r.receivable_amount) || 0;
     return { ...r, pending_balance: pending };
   });
 
@@ -442,19 +465,23 @@ router.get('/branch-ledger/export', authenticate, async (req, res) => {
     SELECT
       b.id as branch_id,
       b.name as branch_name,
-      COALESCE(SUM(r.amount + 0), 0) as credit_sales,
+      COALESCE(SUM(CASE WHEN r.id IS NOT NULL THEN r.amount + COALESCE(rr_sum.total_recovered, 0) ELSE 0 END), 0) as credit_sales,
       COALESCE(SUM(CASE WHEN r.status IN ('pending','partial') THEN r.amount ELSE 0 END), 0) as receivable_amount,
-      COALESCE(SUM(rr.amount), 0) as received_amount
+      COALESCE(SUM(COALESCE(rr_sum.total_recovered, 0)), 0) as received_amount
     FROM branches b
     LEFT JOIN receivables r ON r.branch_id = b.id
-    LEFT JOIN receivable_recoveries rr ON rr.receivable_id = r.id
+    LEFT JOIN (
+      SELECT receivable_id, SUM(amount) as total_recovered
+      FROM receivable_recoveries
+      GROUP BY receivable_id
+    ) rr_sum ON rr_sum.receivable_id = r.id
     WHERE b.is_active = 1 AND ${where}
     GROUP BY b.id, b.name
     ORDER BY b.name
   `).all(...params);
 
   const data = rows.map((r) => {
-    const pending = (parseFloat(r.receivable_amount) || 0) - (parseFloat(r.received_amount) || 0);
+    const pending = parseFloat(r.receivable_amount) || 0;
     return { ...r, pending_balance: pending };
   });
 

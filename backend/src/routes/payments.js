@@ -11,7 +11,7 @@ router.get('/options', authenticate, (req, res) => {
   const rentBills = db.prepare(`
     SELECT id, title, category, amount, paid_amount, (amount - COALESCE(paid_amount, 0)) as balance, status, due_date
     FROM rent_bills
-    WHERE status IN ('pending', 'partial')
+    WHERE status IN ('pending', 'partial') AND due_date IS NOT NULL
     ORDER BY due_date ASC, id DESC
   `).all();
   const salaries = db.prepare(`

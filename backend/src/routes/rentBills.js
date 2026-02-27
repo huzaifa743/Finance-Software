@@ -72,27 +72,70 @@ router.get('/ledger', authenticate, (req, res) => {
   res.json({ items, totalAmount, totalPaid, totalBalance: totalAmount - totalPaid });
 });
 
-// Single rent/bill ledger (one entry with its payments) - /:id/ledger
+// Single rent/bill ledger by title (all monthly entries + payments) - same shape as staff ledger
 router.get('/:id/ledger', authenticate, (req, res) => {
   const { id } = req.params;
   const bill = db.prepare('SELECT * FROM rent_bills WHERE id = ?').get(id);
   if (!bill) return res.status(404).json({ error: 'Rent/Bill not found.' });
 
+  const title = bill.title;
+  // All monthly records (processed entries) for this bill title
+  const recordsRaw = db.prepare(`
+    SELECT * FROM rent_bills
+    WHERE title = ? AND due_date IS NOT NULL
+    ORDER BY due_date DESC
+  `).all(title);
+
   const payments = db.prepare(`
-    SELECT p.*, b.name as bank_name
+    SELECT p.*, b.name as bank_name, substr(rb.due_date, 1, 7) as month_year
     FROM payments p
     LEFT JOIN banks b ON p.bank_id = b.id
-    WHERE p.reference_type = 'rent_bill' AND p.reference_id = ?
-    ORDER BY p.payment_date ASC, p.id ASC
-  `).all(id);
+    JOIN rent_bills rb ON p.reference_type = 'rent_bill' AND p.reference_id = rb.id
+    WHERE rb.title = ?
+    ORDER BY p.payment_date DESC, p.id DESC
+  `).all(title);
 
-  const totalAmount = parseFloat(bill.amount) || 0;
-  const totalPaid = bill.paid_amount != null
-    ? (parseFloat(bill.paid_amount) || 0)
-    : payments.reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
-  const balance = totalAmount - totalPaid;
+  const monthYear = (dueDate) => dueDate ? String(dueDate).slice(0, 7) : null;
+  const byRecord = new Map();
+  recordsRaw.forEach((r) => {
+    const amt = parseFloat(r.amount) || 0;
+    byRecord.set(r.id, {
+      id: r.id,
+      month_year: monthYear(r.due_date),
+      amount: amt,
+      paid_amount: 0,
+      remaining_amount: amt,
+      status: r.status || 'pending',
+    });
+  });
 
-  res.json({ bill, payments, totalAmount, totalPaid, balance });
+  payments.forEach((p) => {
+    const rec = byRecord.get(p.reference_id);
+    if (!rec) return;
+    const a = parseFloat(p.amount) || 0;
+    rec.paid_amount += a;
+  });
+
+  byRecord.forEach((rec) => {
+    const amt = rec.amount;
+    const paid = rec.paid_amount || 0;
+    rec.remaining_amount = Math.max(0, amt - paid);
+    rec.status = paid >= amt ? 'paid' : paid > 0 ? 'partial' : 'pending';
+  });
+
+  const salaries = Array.from(byRecord.values());
+  const totalAmount = salaries.reduce((a, r) => a + r.amount, 0);
+  const totalPaid = salaries.reduce((a, r) => a + (r.paid_amount || 0), 0);
+  const pending = totalAmount - totalPaid;
+
+  res.json({
+    bill: { title: bill.title, category: bill.category },
+    salaries,
+    payments,
+    totalAmount,
+    totalPaid,
+    pending,
+  });
 });
 
 router.get('/ledger/export', authenticate, async (req, res) => {
@@ -176,7 +219,7 @@ router.get('/ledger/export', authenticate, async (req, res) => {
   return res.status(400).json({ error: 'Unsupported type. Use pdf or xlsx.' });
 });
 
-// Single rent/bill ledger export (one entry) - /:id/ledger/export
+// Single rent/bill ledger export (by title - monthly records + payments, same as staff)
 router.get('/:id/ledger/export', authenticate, async (req, res) => {
   const { id } = req.params;
   const { type } = req.query;
@@ -185,55 +228,68 @@ router.get('/:id/ledger/export', authenticate, async (req, res) => {
   const bill = db.prepare('SELECT * FROM rent_bills WHERE id = ?').get(id);
   if (!bill) return res.status(404).json({ error: 'Rent/Bill not found.' });
 
+  const title = bill.title;
+  const recordsRaw = db.prepare(`
+    SELECT * FROM rent_bills
+    WHERE title = ? AND due_date IS NOT NULL
+    ORDER BY due_date DESC
+  `).all(title);
+
   const payments = db.prepare(`
-    SELECT p.*, b.name as bank_name
+    SELECT p.*, b.name as bank_name, substr(rb.due_date, 1, 7) as month_year
     FROM payments p
     LEFT JOIN banks b ON p.bank_id = b.id
-    WHERE p.reference_type = 'rent_bill' AND p.reference_id = ?
-    ORDER BY p.payment_date ASC, p.id ASC
-  `).all(id);
+    JOIN rent_bills rb ON p.reference_type = 'rent_bill' AND p.reference_id = rb.id
+    WHERE rb.title = ?
+    ORDER BY p.payment_date DESC, p.id DESC
+  `).all(title);
 
-  const totalAmount = parseFloat(bill.amount) || 0;
-  const totalPaid = bill.paid_amount != null
-    ? (parseFloat(bill.paid_amount) || 0)
-    : payments.reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
-  const balance = totalAmount - totalPaid;
+  const monthYear = (d) => d ? String(d).slice(0, 7) : null;
+  const byRecord = new Map();
+  recordsRaw.forEach((r) => {
+    const amt = parseFloat(r.amount) || 0;
+    byRecord.set(r.id, { id: r.id, month_year: monthYear(r.due_date), amount: amt, paid_amount: 0, remaining_amount: amt, status: r.status || 'pending' });
+  });
+  payments.forEach((p) => {
+    const rec = byRecord.get(p.reference_id);
+    if (rec) rec.paid_amount += parseFloat(p.amount) || 0;
+  });
+  byRecord.forEach((rec) => {
+    rec.remaining_amount = Math.max(0, rec.amount - (rec.paid_amount || 0));
+    rec.status = (rec.paid_amount || 0) >= rec.amount ? 'paid' : (rec.paid_amount || 0) > 0 ? 'partial' : 'pending';
+  });
+  const salaries = Array.from(byRecord.values());
+  const totalAmount = salaries.reduce((a, r) => a + r.amount, 0);
+  const totalPaid = salaries.reduce((a, r) => a + (r.paid_amount || 0), 0);
+  const pending = totalAmount - totalPaid;
 
   const company = getCompanySettings(db);
-  const safeTitle = (bill.title || `rent-bill-${id}`).replace(/\s+/g, '-');
+  const safeTitle = (title || `rent-bill-${id}`).replace(/\s+/g, '-');
   const filenameBase = `rent-bill-ledger-${safeTitle}`;
 
   if (type === 'xlsx') {
     const wb = new ExcelJS.Workbook();
     wb.creator = company.companyName || 'Finance Software';
 
-    const ws = wb.addWorksheet('Ledger');
-    addExcelCompanyHeader(ws, company, `Rent/Bill Ledger — ${bill.title}`, wb);
-    ws.addRow(['Title', 'Category', 'Amount', 'Paid', 'Balance', 'Due Date', 'Status']);
-    ws.lastRow.font = { bold: true };
-    ws.addRow([
-      bill.title,
-      bill.category || 'bill',
-      totalAmount,
-      totalPaid,
-      balance,
-      bill.due_date || '',
-      bill.status || 'pending',
-    ]);
+    const wsRec = wb.addWorksheet('Monthly records');
+    addExcelCompanyHeader(wsRec, company, `Rent/Bill Ledger — ${title}`, wb);
+    wsRec.addRow(['Month', 'Amount', 'Paid', 'Remaining', 'Status']);
+    wsRec.lastRow.font = { bold: true };
+    salaries.forEach((r) => wsRec.addRow([r.month_year || '', r.amount, r.paid_amount || 0, r.remaining_amount, r.status]));
 
     const wsPay = wb.addWorksheet('Payments');
-    addExcelCompanyHeader(wsPay, company, `Payments — ${bill.title}`, wb);
-    wsPay.addRow(['Payment Date', 'Mode', 'Bank', 'Amount', 'Remarks']);
+    addExcelCompanyHeader(wsPay, company, `Payments — ${title}`, wb);
+    wsPay.addRow(['Payment Date', 'Month', 'Mode', 'Bank', 'Amount', 'Remarks']);
     wsPay.lastRow.font = { bold: true };
     payments.forEach((p) => {
-      wsPay.addRow([
-        p.payment_date,
-        p.mode === 'bank' ? 'Bank' : 'Cash',
-        p.bank_name || '',
-        parseFloat(p.amount) || 0,
-        p.remarks || '',
-      ]);
+      wsPay.addRow([p.payment_date, p.month_year || '', p.mode === 'bank' ? 'Bank' : 'Cash', p.bank_name || '', parseFloat(p.amount) || 0, p.remarks || '']);
     });
+
+    const summary = wb.addWorksheet('Summary');
+    addExcelCompanyHeader(summary, company, `Ledger — ${title}`, wb);
+    summary.addRow(['Total amount', totalAmount]);
+    summary.addRow(['Total paid', totalPaid]);
+    summary.addRow(['Pending', pending]);
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.xlsx"`);
@@ -247,32 +303,24 @@ router.get('/:id/ledger/export', authenticate, async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filenameBase}.pdf"`);
     doc.pipe(res);
 
-    addPdfCompanyHeader(doc, company, { title: 'Rent/Bill Ledger', subtitle: bill.title });
+    addPdfCompanyHeader(doc, company, { title: 'Rent/Bill Ledger', subtitle: title });
     doc.fontSize(10).font('Helvetica').text(
-      `Amount: ${totalAmount.toFixed(2)}   Paid: ${totalPaid.toFixed(2)}   Balance: ${balance.toFixed(2)}`
+      `Total amount: ${totalAmount.toFixed(2)}   Paid: ${totalPaid.toFixed(2)}   Pending: ${pending.toFixed(2)}`
     );
-    if (bill.due_date || bill.status || bill.category) {
-      doc.moveDown(0.5);
-      doc.fontSize(9).font('Helvetica').text(
-        `Category: ${bill.category || 'bill'}   Due: ${bill.due_date || '–'}   Status: ${bill.status || 'pending'}`
-      );
-    }
-    if (bill.remarks) {
-      doc.moveDown(0.5);
-      doc.fontSize(9).font('Helvetica').text(`Remarks: ${bill.remarks}`);
-    }
-
+    doc.moveDown(0.75);
+    doc.fontSize(11).font('Helvetica-Bold').text('Monthly records', { underline: true });
+    doc.moveDown(0.25);
+    doc.fontSize(9).font('Helvetica').text('Month\tAmount\tPaid\tRemaining\tStatus', { lineGap: 2 });
+    salaries.forEach((r) => {
+      doc.text(`${r.month_year || '–'}\t${r.amount.toFixed(2)}\t${(r.paid_amount || 0).toFixed(2)}\t${r.remaining_amount.toFixed(2)}\t${r.status}`, { lineGap: 2 });
+    });
     doc.moveDown(1);
     doc.fontSize(11).font('Helvetica-Bold').text('Payments', { underline: true });
     doc.moveDown(0.25);
-
     if (payments.length) {
-      doc.fontSize(9).font('Helvetica').text('Date\tMode\tBank\tAmount\tRemarks', { lineGap: 2 });
+      doc.fontSize(9).font('Helvetica').text('Date\tMonth\tMode\tAmount\tRemarks', { lineGap: 2 });
       payments.forEach((p) => {
-        doc.text(
-          `${p.payment_date || ''}\t${p.mode === 'bank' ? 'Bank' : 'Cash'}\t${p.bank_name || '–'}\t${(parseFloat(p.amount) || 0).toFixed(2)}\t${p.remarks || '–'}`,
-          { lineGap: 2 }
-        );
+        doc.text(`${p.payment_date || ''}\t${p.month_year || '–'}\t${p.mode === 'bank' ? 'Bank' : 'Cash'}\t${(parseFloat(p.amount) || 0).toFixed(2)}\t${p.remarks || '–'}`, { lineGap: 2 });
       });
     } else {
       doc.fontSize(9).font('Helvetica').text('No payments yet.');
@@ -305,11 +353,45 @@ router.post('/', authenticate, requireNotAuditor, logActivity('create', 'rent_bi
     const { title, category, amount, due_date, remarks } = req.body;
     const amt = parseFloat(amount);
     if (!title || amt === undefined || isNaN(amt)) return res.status(400).json({ error: 'Title and amount required.' });
+    // Simple add: create a base rent/bill definition (no monthly restriction here).
     const r = db.prepare(`
       INSERT INTO rent_bills (title, category, amount, due_date, paid_amount, status, remarks)
       VALUES (?, ?, ?, ?, 0, 'pending', ?)
     `).run(title, category || 'bill', amt, due_date || null, remarks || null);
     res.status(201).json({ id: r.lastInsertRowid, title, amount: amt });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Process a monthly cycle for an existing rent/bill entry itself (do not create new rows)
+router.post('/:id/process', authenticate, requireNotAuditor, logActivity('process', 'rent_bills', req => req.params.id), (req, res) => {
+  try {
+    const { id } = req.params;
+    const { month_year, amount } = req.body;
+    if (!month_year) return res.status(400).json({ error: 'month_year required (YYYY-MM).' });
+
+    const base = db.prepare('SELECT * FROM rent_bills WHERE id = ?').get(id);
+    if (!base) return res.status(404).json({ error: 'Rent/Bill not found.' });
+
+    const amt = parseFloat(amount ?? base.amount);
+    if (!amt || isNaN(amt) || amt <= 0) return res.status(400).json({ error: 'Valid amount required.' });
+
+    const dueDate = `${month_year}-01`;
+
+    // Update this entry to set the month and amount; do not create a new entry
+    db.prepare(`
+      UPDATE rent_bills
+      SET amount = ?, due_date = ?, updated_at = ?
+      WHERE id = ?
+    `).run(amt, dueDate, new Date().toISOString(), id);
+
+    res.status(200).json({
+      id: base.id,
+      title: base.title,
+      month_year,
+      amount: amt,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

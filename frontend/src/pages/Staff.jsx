@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, DollarSign, FileDown, BookOpen, Printer, Search } from 'lucide-react';
 import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
+import RentBills from './RentBills';
 
 export default function Staff() {
   const [list, setList] = useState([]);
@@ -20,6 +21,7 @@ export default function Staff() {
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerQuery, setLedgerQuery] = useState('');
   const [staffQuery, setStaffQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('staff'); // 'staff' | 'rent'
 
   const load = () => api.get('/staff').then(setList).catch((e) => setErr(e.message));
 
@@ -328,267 +330,305 @@ export default function Staff() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Staff Salary & Commission</h1>
-          <p className="text-slate-500 mt-1">Branch-wise staff, fixed salary, commission, advances, salary processing</p>
+          <h1 className="text-2xl font-bold text-slate-900">Staff, Salary, Rent &amp; Bills</h1>
+          <p className="text-slate-500 mt-1">
+            Manage staff salaries and commissions, and process monthly rent &amp; bills with ledgers.
+          </p>
         </div>
-        <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Staff</button>
+        <div className="inline-flex items-center rounded-lg bg-slate-100 border border-slate-200 p-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('staff')}
+            className={`px-3 py-1.5 text-xs md:text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'staff'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Staff &amp; Salary
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('rent')}
+            className={`ml-1 px-3 py-1.5 text-xs md:text-sm font-medium rounded-md transition-colors ${
+              activeTab === 'rent'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Rent &amp; Bills
+          </button>
+        </div>
       </div>
 
-      {err && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">{err}</div>}
+      {activeTab === 'staff' && (
+        <>
+          {err && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">{err}</div>}
 
-      <div className="card p-4 mb-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-            <Search className="w-4 h-4 text-slate-500" />
-            <span>Search staff</span>
-          </div>
-          <input
-            className="input w-full md:w-[360px]"
-            placeholder="Search by name, branch, contact"
-            value={staffQuery}
-            onChange={(e) => setStaffQuery(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className="card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Branch</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Fixed Salary</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Commission %</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Contact</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {filteredStaff.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium">{s.name}</td>
-                  <td className="px-4 py-3">{s.branch_name || '–'}</td>
-                  <td className="px-4 py-3 text-right font-mono">{fmt(s.fixed_salary)}</td>
-                  <td className="px-4 py-3 text-right font-mono">{s.commission_rate}%</td>
-                  <td className="px-4 py-3">{s.contact || '–'}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => openSalary(s)} className="btn-primary text-xs mr-1">Process Salary</button>
-                    <button onClick={() => openSlips(s)} className="btn-secondary text-xs mr-1">Salary Slips</button>
-                    <button onClick={() => openLedger(s)} className="btn-secondary text-xs mr-1 inline-flex items-center gap-1">
-                      <BookOpen className="w-3 h-3" /> Ledger
-                    </button>
-                    <button onClick={() => openEdit(s)} className="p-1.5 text-slate-500 hover:text-primary-600"><Pencil className="w-4 h-4" /></button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {!filteredStaff.length && !loading && <p className="p-8 text-center text-slate-500">No staff.</p>}
-      </div>
-
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">{modal === 'add' ? 'Add Staff' : 'Edit Staff'}</h2>
-            <form onSubmit={save} className="space-y-4">
-              <div><label className="label">Name *</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
-              <div><label className="label">Branch</label><select className="input" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}><option value="">–</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="label">Fixed Salary</label><input type="number" step="0.01" className="input" value={form.fixed_salary} onChange={(e) => setForm({ ...form, fixed_salary: e.target.value })} /></div>
-                <div><label className="label">Commission %</label><input type="number" step="0.01" className="input" value={form.commission_rate} onChange={(e) => setForm({ ...form, commission_rate: e.target.value })} /></div>
+          <div className="card p-4 mb-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Search className="w-4 h-4 text-slate-500" />
+                  <span>Search staff</span>
+                </div>
+                <input
+                  className="input w-full md:w-[360px]"
+                  placeholder="Search by name, branch, contact"
+                  value={staffQuery}
+                  onChange={(e) => setStaffQuery(e.target.value)}
+                />
               </div>
-              <div><label className="label">Contact</label><input className="input" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></div>
-              <div><label className="label">Joined Date</label><input type="date" className="input" value={form.joined_date} onChange={(e) => setForm({ ...form, joined_date: e.target.value })} /></div>
-              <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Save</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button></div>
-            </form>
+              <button onClick={openAdd} className="btn-primary">
+                <Plus className="w-4 h-4" /> Add Staff
+              </button>
+            </div>
           </div>
-        </div>
-      )}
 
-      {salaryModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="card w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Process Salary — {salaryModal.name}</h2>
-            <form onSubmit={processSalary} className="space-y-4">
-              <div><label className="label">Month (YYYY-MM) *</label><input className="input" value={salaryForm.month_year} onChange={(e) => setSalaryForm({ ...salaryForm, month_year: e.target.value })} placeholder="2025-01" required /></div>
-              <div><label className="label">Base Salary</label><input type="number" step="0.01" className="input" value={salaryForm.base_salary} onChange={(e) => setSalaryForm({ ...salaryForm, base_salary: e.target.value })} /></div>
-              <div><label className="label">Commission</label><input type="number" step="0.01" className="input" value={salaryForm.commission} onChange={(e) => setSalaryForm({ ...salaryForm, commission: e.target.value })} /></div>
-              <div><label className="label">Advances</label><input type="number" step="0.01" className="input" value={salaryForm.advances} onChange={(e) => setSalaryForm({ ...salaryForm, advances: e.target.value })} /></div>
-              <div><label className="label">Deductions</label><input type="number" step="0.01" className="input" value={salaryForm.deductions} onChange={(e) => setSalaryForm({ ...salaryForm, deductions: e.target.value })} /></div>
-              <p className="text-sm font-medium">Net: {fmt(net())}</p>
-              <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Process</button><button type="button" onClick={() => setSalaryModal(null)} className="btn-secondary">Cancel</button></div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {slipModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="card w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Salary Slips — {slipModal.name}</h2>
-            {slipLoading ? (
-              <p className="text-sm text-slate-500">Loading…</p>
-            ) : slipRecords.length ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="text-left px-3 py-2">Month</th>
-                      <th className="text-right px-3 py-2">Net</th>
-                      <th className="text-right px-3 py-2">Actions</th>
+          <div className="card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-slate-700">Name</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-700">Branch</th>
+                    <th className="text-right px-4 py-3 font-medium text-slate-700">Fixed Salary</th>
+                    <th className="text-right px-4 py-3 font-medium text-slate-700">Commission %</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-700">Contact</th>
+                    <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {filteredStaff.map((s) => (
+                    <tr key={s.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-medium">{s.name}</td>
+                      <td className="px-4 py-3">{s.branch_name || '–'}</td>
+                      <td className="px-4 py-3 text-right font-mono">{fmt(s.fixed_salary)}</td>
+                      <td className="px-4 py-3 text-right font-mono">{s.commission_rate}%</td>
+                      <td className="px-4 py-3">{s.contact || '–'}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => openSalary(s)} className="btn-primary text-xs mr-1">Process Salary</button>
+                        <button onClick={() => openSlips(s)} className="btn-secondary text-xs mr-1">Salary Slips</button>
+                        <button onClick={() => openLedger(s)} className="btn-secondary text-xs mr-1 inline-flex items-center gap-1">
+                          <BookOpen className="w-3 h-3" /> Ledger
+                        </button>
+                        <button onClick={() => openEdit(s)} className="p-1.5 text-slate-500 hover:text-primary-600"><Pencil className="w-4 h-4" /></button>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {slipRecords.map((r) => (
-                      <tr key={r.id}>
-                        <td className="px-3 py-2">{r.month_year}</td>
-                        <td className="px-3 py-2 text-right font-mono">{fmt(r.net_salary)}</td>
-                        <td className="px-3 py-2 text-right">
-                          <button onClick={() => downloadSlip(r.id, 'a4')} className="btn-secondary text-xs mr-1"><FileDown className="w-3 h-3" /> A4</button>
-                          <button onClick={() => downloadSlip(r.id, 'thermal')} className="btn-secondary text-xs"><FileDown className="w-3 h-3" /> Thermal</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-slate-500">No salary records yet.</p>
-            )}
-            <button type="button" onClick={() => { setSlipModal(null); setSlipRecords([]); }} className="btn-secondary mt-4">Close</button>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!filteredStaff.length && !loading && <p className="p-8 text-center text-slate-500">No staff.</p>}
           </div>
-        </div>
-      )}
 
-      {ledgerStaff && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="card w-full max-w-5xl p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 mb-1">Ledger — {ledgerStaff.name}</h2>
-                {ledger && (
-                  <p className="text-sm text-slate-600">
-                    Total salary: {fmt(ledger.totalSalary)} • Total paid: {fmt(ledger.totalPaid)} • Pending: {fmt(ledger.pending)}
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => downloadLedger('pdf')}
-                  className="btn-secondary text-xs inline-flex items-center gap-1"
-                  disabled={ledgerLoading || !ledger}
-                >
-                  <FileDown className="w-3 h-3" /> PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() => downloadLedger('xlsx')}
-                  className="btn-secondary text-xs inline-flex items-center gap-1"
-                  disabled={ledgerLoading || !ledger}
-                >
-                  <FileDown className="w-3 h-3" /> Excel
-                </button>
-                <button
-                  type="button"
-                  onClick={printLedger}
-                  className="btn-secondary text-xs inline-flex items-center gap-1"
-                  disabled={ledgerLoading || !ledger}
-                >
-                  <Printer className="w-3 h-3" /> Print
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setLedgerStaff(null); setLedger(null); setLedgerQuery(''); }}
-                  className="btn-secondary text-xs"
-                >
-                  Close
-                </button>
+          {modal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">{modal === 'add' ? 'Add Staff' : 'Edit Staff'}</h2>
+                <form onSubmit={save} className="space-y-4">
+                  <div><label className="label">Name *</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+                  <div><label className="label">Branch</label><select className="input" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}><option value="">–</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div><label className="label">Fixed Salary</label><input type="number" step="0.01" className="input" value={form.fixed_salary} onChange={(e) => setForm({ ...form, fixed_salary: e.target.value })} /></div>
+                    <div><label className="label">Commission %</label><input type="number" step="0.01" className="input" value={form.commission_rate} onChange={(e) => setForm({ ...form, commission_rate: e.target.value })} /></div>
+                  </div>
+                  <div><label className="label">Contact</label><input className="input" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></div>
+                  <div><label className="label">Joined Date</label><input type="date" className="input" value={form.joined_date} onChange={(e) => setForm({ ...form, joined_date: e.target.value })} /></div>
+                  <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Save</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button></div>
+                </form>
               </div>
             </div>
+          )}
 
-            {ledgerLoading && <p className="mt-4 text-sm text-slate-500">Loading ledger…</p>}
+          {salaryModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="card w-full max-w-md p-6">
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">Process Salary — {salaryModal.name}</h2>
+                <form onSubmit={processSalary} className="space-y-4">
+                  <div><label className="label">Month (YYYY-MM) *</label><input className="input" value={salaryForm.month_year} onChange={(e) => setSalaryForm({ ...salaryForm, month_year: e.target.value })} placeholder="2025-01" required /></div>
+                  <div><label className="label">Base Salary</label><input type="number" step="0.01" className="input" value={salaryForm.base_salary} onChange={(e) => setSalaryForm({ ...salaryForm, base_salary: e.target.value })} /></div>
+                  <div><label className="label">Commission</label><input type="number" step="0.01" className="input" value={salaryForm.commission} onChange={(e) => setSalaryForm({ ...salaryForm, commission: e.target.value })} /></div>
+                  <div><label className="label">Advances</label><input type="number" step="0.01" className="input" value={salaryForm.advances} onChange={(e) => setSalaryForm({ ...salaryForm, advances: e.target.value })} /></div>
+                  <div><label className="label">Deductions</label><input type="number" step="0.01" className="input" value={salaryForm.deductions} onChange={(e) => setSalaryForm({ ...salaryForm, deductions: e.target.value })} /></div>
+                  <p className="text-sm font-medium">Net: {fmt(net())}</p>
+                  <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Process</button><button type="button" onClick={() => setSalaryModal(null)} className="btn-secondary">Cancel</button></div>
+                </form>
+              </div>
+            </div>
+          )}
 
-            {ledger && (
-              <>
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-                    <Search className="w-4 h-4 text-slate-500" />
-                    <span>Search</span>
+          {slipModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="card w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">Salary Slips — {slipModal.name}</h2>
+                {slipLoading ? (
+                  <p className="text-sm text-slate-500">Loading…</p>
+                ) : slipRecords.length ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                          <th className="text-left px-3 py-2">Month</th>
+                          <th className="text-right px-3 py-2">Net</th>
+                          <th className="text-right px-3 py-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {slipRecords.map((r) => (
+                          <tr key={r.id}>
+                            <td className="px-3 py-2">{r.month_year}</td>
+                            <td className="px-3 py-2 text-right font-mono">{fmt(r.net_salary)}</td>
+                            <td className="px-3 py-2 text-right">
+                              <button onClick={() => downloadSlip(r.id, 'a4')} className="btn-secondary text-xs mr-1"><FileDown className="w-3 h-3" /> A4</button>
+                              <button onClick={() => downloadSlip(r.id, 'thermal')} className="btn-secondary text-xs"><FileDown className="w-3 h-3" /> Thermal</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <input
-                    className="input w-full md:w-[520px]"
-                    placeholder="Search ledger by month, amount, status, remarks"
-                    value={ledgerQuery}
-                    onChange={(e) => setLedgerQuery(e.target.value)}
-                  />
+                ) : (
+                  <p className="text-sm text-slate-500">No salary records yet.</p>
+                )}
+                <button type="button" onClick={() => { setSlipModal(null); setSlipRecords([]); }} className="btn-secondary mt-4">Close</button>
+              </div>
+            </div>
+          )}
+
+          {ledgerStaff && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="card w-full max-w-5xl p-6 max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-900 mb-1">Ledger — {ledgerStaff.name}</h2>
+                    {ledger && (
+                      <p className="text-sm text-slate-600">
+                        Total salary: {fmt(ledger.totalSalary)} • Total paid: {fmt(ledger.totalPaid)} • Pending: {fmt(ledger.pending)}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => downloadLedger('pdf')}
+                      className="btn-secondary text-xs inline-flex items-center gap-1"
+                      disabled={ledgerLoading || !ledger}
+                    >
+                      <FileDown className="w-3 h-3" /> PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadLedger('xlsx')}
+                      className="btn-secondary text-xs inline-flex items-center gap-1"
+                      disabled={ledgerLoading || !ledger}
+                    >
+                      <FileDown className="w-3 h-3" /> Excel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={printLedger}
+                      className="btn-secondary text-xs inline-flex items-center gap-1"
+                      disabled={ledgerLoading || !ledger}
+                    >
+                      <Printer className="w-3 h-3" /> Print
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setLedgerStaff(null); setLedger(null); setLedgerQuery(''); }}
+                      className="btn-secondary text-xs"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
 
-                <div className="overflow-x-auto mt-4">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-200">
-                      <tr>
-                        <th className="text-left px-3 py-2">Month</th>
-                        <th className="text-right px-3 py-2">Base</th>
-                        <th className="text-right px-3 py-2">Commission</th>
-                        <th className="text-right px-3 py-2">Advances (planned)</th>
-                        <th className="text-right px-3 py-2">Deductions</th>
-                        <th className="text-right px-3 py-2">Net salary</th>
-                        <th className="text-right px-3 py-2">Paid (total)</th>
-                        <th className="text-right px-3 py-2">Remaining</th>
-                        <th className="text-left px-3 py-2">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {filteredSalaries.map((r) => (
-                        <tr key={r.id}>
-                          <td className="px-3 py-2">{r.month_year}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(r.base_salary)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(r.commission)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(r.advances_planned ?? r.advances)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(r.deductions)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(r.net_salary)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(r.paid_amount ?? 0)}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(r.remaining_amount ?? (r.net_salary - (r.paid_amount || 0)))}</td>
-                          <td className="px-3 py-2">{r.status}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {!filteredSalaries.length && <p className="p-3 text-sm text-slate-500">No salary records found.</p>}
-                </div>
+                {ledgerLoading && <p className="mt-4 text-sm text-slate-500">Loading ledger…</p>}
 
-                <div className="overflow-x-auto mt-4">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-200">
-                      <tr>
-                        <th className="text-left px-3 py-2">Payment Date</th>
-                        <th className="text-left px-3 py-2">Month</th>
-                        <th className="text-left px-3 py-2">Mode</th>
-                        <th className="text-right px-3 py-2">Amount</th>
-                        <th className="text-left px-3 py-2">Remarks</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {filteredPayments.map((p) => (
-                        <tr key={p.id}>
-                          <td className="px-3 py-2">{p.payment_date}</td>
-                          <td className="px-3 py-2">{p.month_year}</td>
-                          <td className="px-3 py-2">{p.mode}</td>
-                          <td className="px-3 py-2 text-right font-mono">{fmt(p.amount)}</td>
-                          <td className="px-3 py-2">{p.remarks || '–'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {!filteredPayments.length && <p className="p-3 text-sm text-slate-500">No salary payments found.</p>}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+                {ledger && (
+                  <>
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                      <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <Search className="w-4 h-4 text-slate-500" />
+                        <span>Search</span>
+                      </div>
+                      <input
+                        className="input w-full md:w-[520px]"
+                        placeholder="Search ledger by month, amount, status, remarks"
+                        value={ledgerQuery}
+                        onChange={(e) => setLedgerQuery(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="overflow-x-auto mt-4">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr>
+                            <th className="text-left px-3 py-2">Month</th>
+                            <th className="text-right px-3 py-2">Base</th>
+                            <th className="text-right px-3 py-2">Commission</th>
+                            <th className="text-right px-3 py-2">Advances (planned)</th>
+                            <th className="text-right px-3 py-2">Deductions</th>
+                            <th className="text-right px-3 py-2">Net salary</th>
+                            <th className="text-right px-3 py-2">Paid (total)</th>
+                            <th className="text-right px-3 py-2">Remaining</th>
+                            <th className="text-left px-3 py-2">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {filteredSalaries.map((r) => (
+                            <tr key={r.id}>
+                              <td className="px-3 py-2">{r.month_year}</td>
+                              <td className="px-3 py-2 text-right font-mono">{fmt(r.base_salary)}</td>
+                              <td className="px-3 py-2 text-right font-mono">{fmt(r.commission)}</td>
+                              <td className="px-3 py-2 text-right font-mono">{fmt(r.advances_planned ?? r.advances)}</td>
+                              <td className="px-3 py-2 text-right font-mono">{fmt(r.deductions)}</td>
+                              <td className="px-3 py-2 text-right font-mono">{fmt(r.net_salary)}</td>
+                              <td className="px-3 py-2 text-right font-mono">{fmt(r.paid_amount ?? 0)}</td>
+                              <td className="px-3 py-2 text-right font-mono">{fmt(r.remaining_amount ?? (r.net_salary - (r.paid_amount || 0)))}</td>
+                              <td className="px-3 py-2">{r.status}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {!filteredSalaries.length && <p className="p-3 text-sm text-slate-500">No salary records found.</p>}
+                    </div>
+
+                    <div className="overflow-x-auto mt-4">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr>
+                            <th className="text-left px-3 py-2">Payment Date</th>
+                            <th className="text-left px-3 py-2">Month</th>
+                            <th className="text-left px-3 py-2">Mode</th>
+                            <th className="text-right px-3 py-2">Amount</th>
+                            <th className="text-left px-3 py-2">Remarks</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {filteredPayments.map((p) => (
+                            <tr key={p.id}>
+                              <td className="px-3 py-2">{p.payment_date}</td>
+                              <td className="px-3 py-2">{p.month_year}</td>
+                              <td className="px-3 py-2">{p.mode}</td>
+                              <td className="px-3 py-2 text-right font-mono">{fmt(p.amount)}</td>
+                              <td className="px-3 py-2">{p.remarks || '–'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {!filteredPayments.length && <p className="p-3 text-sm text-slate-500">No salary payments found.</p>}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'rent' && (
+        <RentBills />
       )}
     </div>
   );
