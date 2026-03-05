@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, Trash2, Package, ShoppingCart, Search, X } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Inventory() {
+  const { t } = useLanguage();
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -173,7 +175,7 @@ export default function Inventory() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Inventory</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('page.inventory.title')}</h1>
           <p className="text-slate-500 mt-1">Add product details · Enter date when sold · Add sold quantity</p>
         </div>
         <div className="flex gap-2">
@@ -206,9 +208,9 @@ export default function Inventory() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="text-left px-4 py-2 font-medium text-slate-700">Product</th>
-                    <th className="text-right px-4 py-2 font-medium text-slate-700">Total quantity sold</th>
-                    <th className="text-right px-4 py-2 font-medium text-slate-700">Total amount</th>
+                    <th className="text-left px-4 py-2 font-medium text-slate-700">{t('col.product')}</th>
+                    <th className="text-right px-4 py-2 font-medium text-slate-700">{t('col.totalQuantitySold')}</th>
+                    <th className="text-right px-4 py-2 font-medium text-slate-700">{t('col.totalAmount')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -231,15 +233,15 @@ export default function Inventory() {
         )}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Date when sold</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Product</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Branch</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Sold quantity</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Unit Price</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Total</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.date')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.product')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.branch')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.soldQuantity')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.unitPrice')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.total')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -286,9 +288,9 @@ export default function Inventory() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Name</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Unit Price</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.name')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.unitPrice')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">

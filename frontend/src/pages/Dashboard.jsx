@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { TrendingUp, Landmark, Receipt, Truck, DollarSign, WalletCards, PiggyBank } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Dashboard() {
+  const { t } = useLanguage();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -32,6 +34,8 @@ export default function Dashboard() {
     { label: 'Cash in Hand', value: widgets.cashInHand, icon: PiggyBank, color: 'bg-lime-500' },
     { label: 'Bank Balance', value: widgets.bankBalance, icon: Landmark, color: 'bg-blue-600' },
     { label: 'Payables', value: widgets.payables, icon: Truck, color: 'bg-rose-500' },
+    { label: 'Total Rent & Bills Payable', value: widgets.rentBillsPayable, icon: Receipt, color: 'bg-orange-500' },
+    { label: 'Total Salaries Payable', value: widgets.salariesPayable, icon: DollarSign, color: 'bg-fuchsia-600' },
     { label: 'Total Paid (All)', value: widgets.totalPaid, icon: DollarSign, color: 'bg-emerald-700' },
   ];
 
@@ -56,7 +60,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{t('page.dashboard.title')}</h1>
         <p className="text-slate-500 mt-1">Overview • {date}</p>
       </div>
 

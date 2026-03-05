@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Pencil, History, Activity, X } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 const ROLE_DISPLAY = {
   'Super Admin': 'Super Admin (Owner)',
@@ -15,6 +16,7 @@ const AUDIT_MODULES = ['', 'settings', 'sales', 'purchases', 'branches', 'users'
 
 export default function Users() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -84,7 +86,7 @@ export default function Users() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Users &amp; Roles</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('page.users.title')}</h1>
           <p className="text-slate-500 mt-1">Manage users, roles, login history, and activity logs</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -100,15 +102,15 @@ export default function Users() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Email</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Role</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Branch</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Status</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
-              </tr>
-            </thead>
+            <tr>
+              <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.name')}</th>
+              <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.email')}</th>
+              <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.role')}</th>
+              <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.branch')}</th>
+              <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.status')}</th>
+              <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.actions')}</th>
+            </tr>
+          </thead>
                 <tbody className="divide-y divide-slate-200">
                   {users.map((u) => (
                     <tr key={u.id} className="hover:bg-slate-50">
@@ -153,11 +155,11 @@ export default function Users() {
             </div>
             <div className="overflow-x-auto overflow-y-auto flex-1 p-4">
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-slate-700">User</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.user')}</th>
                     <th className="text-left px-4 py-3 font-medium text-slate-700">IP</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-700">Login At</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.loginAt')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -190,11 +192,11 @@ export default function Users() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-slate-700">User</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-700">Action</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.user')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.action') || 'Action'}</th>
                     <th className="text-left px-4 py-3 font-medium text-slate-700">Module</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-700">Details</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-700">At</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.details')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.at')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, ArrowRightLeft, TrendingUp } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Banks() {
+  const { t } = useLanguage();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -89,7 +91,7 @@ export default function Banks() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Bank Management</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('page.banks.title')}</h1>
           <p className="text-slate-500 mt-1">Accounts, deposits, payments, transfers, reconciliation</p>
         </div>
         <div className="flex gap-2">
@@ -127,11 +129,11 @@ export default function Banks() {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="text-left px-4 py-3 font-medium text-slate-700">Date</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-700">Type</th>
-                  <th className="text-right px-4 py-3 font-medium text-slate-700">Amount</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-700">Ref</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-700">Description</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.date')}</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.type')}</th>
+                  <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.amount')}</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.reference')}</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.description')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">

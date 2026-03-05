@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Pencil, Lock, Unlock, Paperclip, Trash2 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Sales() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const canLock = user?.role_name === 'Super Admin' || user?.role_name === 'Finance Manager';
   const canMutate = user?.role_name !== 'Auditor';
   const [list, setList] = useState([]);
@@ -207,7 +209,7 @@ export default function Sales() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Sales Management</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('page.sales.title')}</h1>
           <p className="text-slate-500 mt-1">Daily sales entry, cash / bank / credit, discount & returns</p>
         </div>
         {canMutate && <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Sale</button>}
@@ -238,18 +240,18 @@ export default function Sales() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Date</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Branch</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Type</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Cash</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Bank (accounts)</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Total bank sales</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Credit</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Discount</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Returns</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Net</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Locked</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.date')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.branch')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.type')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.amount')} (Cash)</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.bankAccounts')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.totalBankSales')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.credit')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.discount')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.returns')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.total')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.locked')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">

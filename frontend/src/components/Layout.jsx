@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import {
   LayoutDashboard,
   Building2,
@@ -26,31 +27,31 @@ import {
 // Sidebar order: Overview → Setup → Income → Expenses → Payments → Operations → Reports → Admin
 const nav = [
   // Overview
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard },
 
   // Setup (masters)
-  { path: '/branches', label: 'Branches', icon: Building2 },
-  { path: '/banks', label: 'Banks', icon: Landmark },
-  { path: '/inventory', label: 'Inventory', icon: Boxes },
-  { path: '/suppliers', label: 'Suppliers', icon: Users },
-  { path: '/staff', label: 'Staff, Salary, Rent & Bills', icon: Users },
+  { path: '/branches', labelKey: 'nav.branches', icon: Building2 },
+  { path: '/banks', labelKey: 'nav.banks', icon: Landmark },
+  { path: '/inventory', labelKey: 'nav.inventory', icon: Boxes },
+  { path: '/suppliers', labelKey: 'nav.suppliers', icon: Users },
+  { path: '/staff', labelKey: 'nav.staff', icon: Users },
 
   // Income
-  { path: '/sales', label: 'Sales', icon: ShoppingCart },
-  { path: '/receivables', label: 'Receivables', icon: Receipt },
+  { path: '/sales', labelKey: 'nav.sales', icon: ShoppingCart },
+  { path: '/receivables', labelKey: 'nav.receivables', icon: Receipt },
 
   // Expenses
-  { path: '/purchases', label: 'Purchases', icon: Truck },
+  { path: '/purchases', labelKey: 'nav.purchases', icon: Truck },
 
   // Payments
-  { path: '/payments', label: 'Payments', icon: CreditCard },
+  { path: '/payments', labelKey: 'nav.payments', icon: CreditCard },
 
   // Reports
-  { path: '/reports', label: 'Reports & Analytics', icon: BarChart3 },
+  { path: '/reports', labelKey: 'nav.reports', icon: BarChart3 },
 
   // Admin
-  { path: '/users', label: 'Users & Roles', icon: Shield },
-  { path: '/settings', label: 'Settings', icon: Settings },
+  { path: '/users', labelKey: 'nav.users', icon: Shield },
+  { path: '/settings', labelKey: 'nav.settings', icon: Settings },
 ];
 
 export default function Layout() {
@@ -59,6 +60,7 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
 
   const handleLogout = () => {
     logout();
@@ -85,7 +87,7 @@ export default function Layout() {
         </div>
         <nav className="flex-1 flex flex-col min-h-0 py-4 px-3">
           <div className="flex-1 flex flex-col gap-2 min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar">
-            {nav.map(({ path, label, icon: Icon }) => (
+            {nav.map(({ path, labelKey, icon: Icon }) => (
               <Link
                 key={path}
                 to={path}
@@ -97,7 +99,7 @@ export default function Layout() {
                 }`}
               >
                 <Icon className={`w-4 h-4 shrink-0 ${location.pathname === path ? 'text-white' : 'text-white/70'}`} />
-                <span>{label}</span>
+                <span>{t(labelKey)}</span>
               </Link>
             ))}
           </div>

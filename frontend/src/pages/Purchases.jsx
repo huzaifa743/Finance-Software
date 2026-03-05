@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, Trash2, AlertTriangle, Paperclip } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Purchases() {
+  const { t } = useLanguage();
   const [list, setList] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -197,7 +199,7 @@ export default function Purchases() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Purchase Management</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('page.purchases.title')}</h1>
           <p className="text-slate-500 mt-1">Invoices, branch-wise purchases, payments</p>
         </div>
         <div className="flex gap-2">
@@ -256,15 +258,15 @@ export default function Purchases() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Date</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Supplier</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Branch</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Invoice</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Due Date</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Total</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Paid</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Balance</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.date')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.name')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.branch')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.invoice')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.dueDate')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.total')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.paid')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.balance')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">

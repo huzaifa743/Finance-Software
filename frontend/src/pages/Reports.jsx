@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { FileDown, BarChart3, DollarSign, Wallet, Truck, TrendingUp, Printer } from 'lucide-react';
 import { getCompanyForPrint, buildPrintHeaderHtml, buildPrintDocumentHtml } from '../utils/printHeader';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Reports() {
+  const { t } = useLanguage();
   const [module, setModule] = useState('sales');
   const [type, setType] = useState('daily');
   const [from, setFrom] = useState(new Date().toISOString().slice(0, 10));
@@ -341,7 +343,7 @@ export default function Reports() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Reports & Analytics</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('page.reports.title')}</h1>
           <p className="text-slate-500 mt-1">Profit & Loss, sales, purchases, inventory, combined reports</p>
         </div>
         <div className="flex gap-2">

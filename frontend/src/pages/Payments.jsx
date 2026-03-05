@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { CreditCard, FileText, Banknote, Landmark, WalletCards } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 const CATEGORIES = [
   { value: 'rent_bill', label: 'Rent & Bills', icon: FileText, kind: 'give' },
@@ -14,6 +15,7 @@ const FILTER_TYPES = [
 ];
 
 export default function Payments() {
+  const { t } = useLanguage();
   const [options, setOptions] = useState({ rent_bills: [], salaries: [], banks: [] });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -122,7 +124,7 @@ export default function Payments() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Payments</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{t('page.payments.title')}</h1>
         <p className="text-slate-500 mt-1">Record any payment (send) or receipt (receive from customer). Pay suppliers, rent & bills, salaries; receive from customers. Balance shown where applicable.</p>
       </div>
 
@@ -376,12 +378,12 @@ export default function Payments() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Date</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Type</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Reference</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Amount</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Method</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Remarks</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.date')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.type')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.reference')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.amount')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.mode')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.remarks')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, Trash2, MapPin, User, Calendar } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Branches() {
+  const { t } = useLanguage();
   const [list, setList] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +73,7 @@ export default function Branches() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Branch Management</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('page.branches.title')}</h1>
           <p className="text-slate-500 mt-1">Add, edit, and monitor branches</p>
         </div>
         <button onClick={openAdd} className="btn-primary">
@@ -86,13 +88,13 @@ export default function Branches() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Code</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Location</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Manager</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Opening / Closing</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Status</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.code')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.name')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.location')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.manager')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.openingClosing')}</th>
+                <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.status')}</th>
+                <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">

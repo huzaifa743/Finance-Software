@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, BookOpen, Search, Trash2, FileDown, Printer, DollarSign } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 
 export default function Suppliers() {
+  const { t } = useLanguage();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -329,7 +331,7 @@ export default function Suppliers() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Supplier Management</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('page.suppliers.title')}</h1>
           <p className="text-slate-500 mt-1">Suppliers list and ledger</p>
         </div>
         <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Supplier</button>
@@ -362,15 +364,15 @@ export default function Suppliers() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Name</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Address</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">Phone</th>
-                <th className="text-left px-4 py-3 font-medium text-slate-700">VAT Number</th>
-              <th className="text-right px-4 py-3 font-medium text-slate-700">Pending balance</th>
-                <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
-              </tr>
-            </thead>
+            <tr>
+              <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.name')}</th>
+              <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.address')}</th>
+              <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.phone')}</th>
+              <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.vatNumber')}</th>
+              <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.pendingBalance')}</th>
+              <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.actions')}</th>
+            </tr>
+          </thead>
             <tbody className="divide-y divide-slate-200">
               {filteredList.map((s) => (
                 <tr key={s.id} className="hover:bg-slate-50">

@@ -3,8 +3,10 @@ import { api } from '../api/client';
 import { Plus, Pencil, DollarSign, FileDown, BookOpen, Printer, Search } from 'lucide-react';
 import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 import RentBills from './RentBills';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Staff() {
+  const { t } = useLanguage();
   const [list, setList] = useState([]);
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -330,7 +332,7 @@ export default function Staff() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Staff, Salary, Rent &amp; Bills</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('page.staff.title')}</h1>
           <p className="text-slate-500 mt-1">
             Manage staff salaries and commissions, and process monthly rent &amp; bills with ledgers.
           </p>
@@ -390,12 +392,12 @@ export default function Staff() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="text-left px-4 py-3 font-medium text-slate-700">Name</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-700">Branch</th>
-                    <th className="text-right px-4 py-3 font-medium text-slate-700">Fixed Salary</th>
-                    <th className="text-right px-4 py-3 font-medium text-slate-700">Commission %</th>
-                    <th className="text-left px-4 py-3 font-medium text-slate-700">Contact</th>
-                    <th className="text-right px-4 py-3 font-medium text-slate-700">Actions</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.name')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.branch')}</th>
+                    <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.fixedSalary')}</th>
+                    <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.commissionPercent')}</th>
+                    <th className="text-left px-4 py-3 font-medium text-slate-700">{t('col.contact')}</th>
+                    <th className="text-right px-4 py-3 font-medium text-slate-700">{t('col.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
@@ -564,15 +566,15 @@ export default function Staff() {
                       <table className="w-full text-sm">
                         <thead className="bg-slate-50 border-b border-slate-200">
                           <tr>
-                            <th className="text-left px-3 py-2">Month</th>
-                            <th className="text-right px-3 py-2">Base</th>
-                            <th className="text-right px-3 py-2">Commission</th>
-                            <th className="text-right px-3 py-2">Advances (planned)</th>
-                            <th className="text-right px-3 py-2">Deductions</th>
-                            <th className="text-right px-3 py-2">Net salary</th>
-                            <th className="text-right px-3 py-2">Paid (total)</th>
-                            <th className="text-right px-3 py-2">Remaining</th>
-                            <th className="text-left px-3 py-2">Status</th>
+                            <th className="text-left px-3 py-2">{t('col.month')}</th>
+                            <th className="text-right px-3 py-2">{t('col.base')}</th>
+                            <th className="text-right px-3 py-2">{t('col.commission')}</th>
+                            <th className="text-right px-3 py-2">{t('col.advances')}</th>
+                            <th className="text-right px-3 py-2">{t('col.deductions')}</th>
+                            <th className="text-right px-3 py-2">{t('col.netSalary')}</th>
+                            <th className="text-right px-3 py-2">{t('col.paidTotal')}</th>
+                            <th className="text-right px-3 py-2">{t('col.remaining')}</th>
+                            <th className="text-left px-3 py-2">{t('col.status')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
@@ -598,11 +600,11 @@ export default function Staff() {
                       <table className="w-full text-sm">
                         <thead className="bg-slate-50 border-b border-slate-200">
                           <tr>
-                            <th className="text-left px-3 py-2">Payment Date</th>
-                            <th className="text-left px-3 py-2">Month</th>
-                            <th className="text-left px-3 py-2">Mode</th>
-                            <th className="text-right px-3 py-2">Amount</th>
-                            <th className="text-left px-3 py-2">Remarks</th>
+                            <th className="text-left px-3 py-2">{t('col.paymentDate')}</th>
+                            <th className="text-left px-3 py-2">{t('col.month')}</th>
+                            <th className="text-left px-3 py-2">{t('col.mode')}</th>
+                            <th className="text-right px-3 py-2">{t('col.amount')}</th>
+                            <th className="text-left px-3 py-2">{t('col.remarks')}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">

@@ -13,5 +13,5 @@ git push -u origin main
 
 
 git add .
-git commit -m "Bank recoveries now only increase bank balance, and no longer decrease cash in hand."
+git commit -m "Added cards in Dashboard and Language."
 git push origin main

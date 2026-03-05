@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, AlertTriangle, FileText, X, Search, FileDown, Printer } from 'lucide-react';
 import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Receivables() {
+  const { t } = useLanguage();
   const [list, setList] = useState([]);
   const [overdue, setOverdue] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -307,7 +309,7 @@ export default function Receivables() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Receivables (Credit Sales)</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('page.receivables.title')}</h1>
           <p className="text-slate-500 mt-1">Branch-wise receivables, recovery, overdue alerts</p>
         </div>
         <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Receivable</button>
@@ -342,12 +344,12 @@ export default function Receivables() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="text-left px-4 py-2 font-medium text-slate-700">Branch</th>
-                <th className="text-right px-4 py-2 font-medium text-slate-700">Credit sales (total)</th>
-                <th className="text-right px-4 py-2 font-medium text-slate-700">Receivables (open)</th>
-                <th className="text-right px-4 py-2 font-medium text-slate-700">Received</th>
-                <th className="text-right px-4 py-2 font-medium text-slate-700">Pending balance</th>
-                <th className="text-right px-4 py-2 font-medium text-slate-700">Actions</th>
+                <th className="text-left px-4 py-2 font-medium text-slate-700">{t('col.branch')}</th>
+                <th className="text-right px-4 py-2 font-medium text-slate-700">{t('col.creditSalesTotal')}</th>
+                <th className="text-right px-4 py-2 font-medium text-slate-700">{t('col.receivablesOpen')}</th>
+                <th className="text-right px-4 py-2 font-medium text-slate-700">{t('col.received')}</th>
+                <th className="text-right px-4 py-2 font-medium text-slate-700">{t('col.pendingBalance')}</th>
+                <th className="text-right px-4 py-2 font-medium text-slate-700">{t('col.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { Save, FileText, X, Download, Upload, Trash2, AlertTriangle } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
+import { Save, FileText, X, Upload, Trash2, AlertTriangle } from 'lucide-react';
 
 const AUDIT_MODULES = ['', 'settings', 'sales', 'purchases', 'branches', 'users', 'banks', 'receivables', 'inventory', 'pl', 'staff'];
 
@@ -9,6 +10,7 @@ const SETTINGS_DEFAULTS = {
   financial_year_start: '', financial_year_end: '',
   invoice_prefix: 'INV', voucher_prefix: 'VCH', invoice_counter: '1', voucher_counter: '1',
   company_name: '', company_phone: '', company_address: '', company_email: '', company_website: '', company_tax_number: '',
+  language: 'en',
 };
 
 function Section({ title, children }) {
@@ -22,7 +24,7 @@ function Section({ title, children }) {
 
 export default function Settings() {
   const { user } = useAuth();
-  const canBackupRestore = user?.role_name === 'Super Admin' || user?.role_name === 'Finance Manager';
+  const { setLanguage } = useLanguage();
   const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -30,9 +32,6 @@ export default function Settings() {
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditModule, setAuditModule] = useState('');
-  const [backupLoading, setBackupLoading] = useState(false);
-  const [restoreFile, setRestoreFile] = useState(null);
-  const [restoreLoading, setRestoreLoading] = useState(false);
   const [logoFile, setLogoFile] = useState(null);
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoUrl, setLogoUrl] = useState(null);
@@ -71,54 +70,6 @@ export default function Settings() {
       setErr(e.message);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const runBackup = async () => {
-    setErr('');
-    setBackupLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/settings/backup', {
-        method: 'GET',
-        headers: { Authorization: token ? `Bearer ${token}` : '' },
-      });
-      const blob = await res.blob();
-      if (!res.ok) {
-        let d = {};
-        try { d = JSON.parse(await blob.text()); } catch (_) {}
-        throw new Error(d.error || res.statusText || 'Backup failed');
-      }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `finance-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBackupLoading(false);
-    }
-  };
-
-  const runRestore = async () => {
-    if (!restoreFile) { setErr('Select a backup JSON file first.'); return; }
-    setErr('');
-    setRestoreLoading(true);
-    try {
-      const text = await restoreFile.text();
-      const backup = JSON.parse(text);
-      const r = await api.post('/settings/restore', backup);
-      setRestoreFile(null);
-      const el = document.getElementById('settings-restore-file');
-      if (el) el.value = '';
-      setErr('');
-      alert(r.message || 'Restore complete.');
-    } catch (e) {
-      setErr(e.message || 'Restore failed.');
-    } finally {
-      setRestoreLoading(false);
     }
   };
 
@@ -175,7 +126,9 @@ export default function Settings() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">System Settings &amp; Utilities</h1>
-          <p className="text-slate-500 mt-1">Financial year, auto numbering, backup, and audit logs</p>
+          <p className="text-slate-500 mt-1">
+            Financial year, auto numbering, and <strong>Audit logs</strong>
+          </p>
         </div>
         <button onClick={save} className="btn-primary" disabled={saving}><Save className="w-4 h-4" /> {saving ? 'Saving…' : 'Save all'}</button>
       </div>
@@ -183,23 +136,7 @@ export default function Settings() {
       {err && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">{err}</div>}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Section title="Financial year setup">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div><label className="label">Start</label><input type="date" className="input" value={settings.financial_year_start || ''} onChange={(e) => update('financial_year_start', e.target.value)} /></div>
-            <div><label className="label">End</label><input type="date" className="input" value={settings.financial_year_end || ''} onChange={(e) => update('financial_year_end', e.target.value)} /></div>
-          </div>
-        </Section>
-
-        <Section title="Auto numbering (invoice, voucher)">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div><label className="label">Invoice prefix</label><input className="input" value={settings.invoice_prefix || 'INV'} onChange={(e) => update('invoice_prefix', e.target.value)} /></div>
-            <div><label className="label">Next invoice #</label><input type="number" min="1" className="input" value={settings.invoice_counter ?? '1'} onChange={(e) => update('invoice_counter', e.target.value)} /></div>
-            <div><label className="label">Voucher prefix</label><input className="input" value={settings.voucher_prefix || 'VCH'} onChange={(e) => update('voucher_prefix', e.target.value)} /></div>
-            <div><label className="label">Next voucher #</label><input type="number" min="1" className="input" value={settings.voucher_counter ?? '1'} onChange={(e) => update('voucher_counter', e.target.value)} /></div>
-          </div>
-        </Section>
-
-        <Section title="Company details (for exports &amp; print)">
+        <Section title="Company details">
           <p className="text-sm text-slate-600 mb-4">Shown in headers of all PDF, Excel, and print exports.</p>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2"><label className="label">Company name</label><input className="input" value={settings.company_name || ''} onChange={(e) => update('company_name', e.target.value)} placeholder="Your business name" /></div>
@@ -236,22 +173,37 @@ export default function Settings() {
           </div>
         </Section>
 
-        <Section title="Local Backup &amp; Restore">
-          <div className="space-y-3">
-            <p className="text-sm text-slate-600">Download or restore a local backup of your database.</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <button type="button" onClick={runBackup} disabled={!canBackupRestore || backupLoading} className="btn-secondary flex items-center gap-2"><Download className="w-4 h-4" /> {backupLoading ? 'Creating…' : 'Download Backup'}</button>
-              <label htmlFor="settings-restore-file" className={`btn-secondary flex items-center gap-2 cursor-pointer inline-flex ${!canBackupRestore ? 'opacity-50 pointer-events-none' : ''}`}><Upload className="w-4 h-4" /> Choose file</label>
-              <input id="settings-restore-file" type="file" accept=".json" className="hidden" onChange={(e) => setRestoreFile(e.target.files?.[0] || null)} />
-              <button type="button" onClick={runRestore} disabled={!canBackupRestore || !restoreFile || restoreLoading} className="btn-primary">Restore from backup</button>
-              {restoreFile && <span className="text-sm text-slate-500">{restoreFile.name}</span>}
+        <Section title="Financial Year &amp; Auto Numbering">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div><label className="label">Start</label><input type="date" className="input" value={settings.financial_year_start || ''} onChange={(e) => update('financial_year_start', e.target.value)} /></div>
+            <div><label className="label">End</label><input type="date" className="input" value={settings.financial_year_end || ''} onChange={(e) => update('financial_year_end', e.target.value)} /></div>
+            <div className="sm:col-span-2 mt-2">
+              <p className="text-sm font-semibold text-slate-700"><strong>Auto numbering (invoice, voucher)</strong></p>
+            </div>
+            <div><label className="label">Invoice prefix</label><input className="input" value={settings.invoice_prefix || 'INV'} onChange={(e) => update('invoice_prefix', e.target.value)} /></div>
+            <div><label className="label">Next invoice #</label><input type="number" min="1" className="input" value={settings.invoice_counter ?? '1'} onChange={(e) => update('invoice_counter', e.target.value)} /></div>
+            <div><label className="label">Voucher prefix</label><input className="input" value={settings.voucher_prefix || 'VCH'} onChange={(e) => update('voucher_prefix', e.target.value)} /></div>
+            <div><label className="label">Next voucher #</label><input type="number" min="1" className="input" value={settings.voucher_counter ?? '1'} onChange={(e) => update('voucher_counter', e.target.value)} /></div>
+            <div className="sm:col-span-2 mt-4 border-t border-slate-200 pt-3">
+              <p className="text-sm text-slate-600 mb-3"><strong>Audit logs</strong></p>
+              <button type="button" onClick={() => setAuditOpen(true)} className="btn-secondary"><FileText className="w-4 h-4" /> View audit logs</button>
+            </div>
+            <div className="sm:col-span-2 mt-4 border-t border-slate-200 pt-3">
+              <p className="text-sm text-slate-600 mb-2"><strong>Select language</strong></p>
+              <select
+                className="input max-w-xs"
+                value={settings.language || 'en'}
+                onChange={(e) => {
+                  update('language', e.target.value);
+                  setLanguage(e.target.value);
+                }}
+              >
+                <option value="en">English</option>
+                <option value="ur">Urdu</option>
+                <option value="ar">Arabic</option>
+              </select>
             </div>
           </div>
-        </Section>
-
-        <Section title="Audit logs">
-          <p className="text-sm text-slate-600 mb-3">View user activity and change history.</p>
-          <button type="button" onClick={() => setAuditOpen(true)} className="btn-secondary"><FileText className="w-4 h-4" /> View audit logs</button>
         </Section>
 
         <Section title="Danger zone — Clear all data">
@@ -282,7 +234,7 @@ export default function Settings() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
             <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-slate-200">
-              <h3 className="text-lg font-semibold text-slate-900">Audit logs</h3>
+              <h3 className="text-lg font-semibold text-slate-900"><strong>Audit logs</strong></h3>
               <div className="flex items-center gap-2">
                 <label className="text-sm text-slate-600">Module</label>
                 <select className="input w-40 text-sm" value={auditModule} onChange={(e) => setAuditModule(e.target.value)}>

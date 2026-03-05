@@ -70,6 +70,22 @@ router.get('/', authenticate, (req, res) => {
   const payables = db.prepare(`
     SELECT COALESCE(SUM(balance), 0) as t FROM purchases WHERE balance > 0
   `).get();
+  const rentBillsPayableRow = db.prepare(`
+    SELECT COALESCE(SUM(amount - COALESCE(paid_amount, 0)), 0) as t
+    FROM rent_bills
+    WHERE status IN ('pending', 'partial') AND due_date IS NOT NULL
+  `).get();
+  const salariesPayableRow = db.prepare(`
+    SELECT COALESCE(SUM(sr.net_salary - COALESCE(p.paid_amount, 0)), 0) as t
+    FROM salary_records sr
+    LEFT JOIN (
+      SELECT reference_id AS salary_id, COALESCE(SUM(amount), 0) AS paid_amount
+      FROM payments
+      WHERE reference_type = 'salary'
+      GROUP BY reference_id
+    ) p ON p.salary_id = sr.id
+    WHERE (sr.net_salary - COALESCE(p.paid_amount, 0)) > 0
+  `).get();
   // Total paid = only cash/bank outflows (exclude receivable recoveries/receipts)
   const totalPaidAll = db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as t
@@ -125,6 +141,8 @@ router.get('/', authenticate, (req, res) => {
       bankBalance: bankBalance(),
       receivables: parseFloat(receivables?.t) || 0,
       payables: parseFloat(payables?.t) || 0,
+      rentBillsPayable: parseFloat(rentBillsPayableRow?.t) || 0,
+      salariesPayable: parseFloat(salariesPayableRow?.t) || 0,
       cashInHand,
       receivableRecovered: parseFloat(receivableRecoveredTotal?.t) || 0,
       totalPaid: parseFloat(totalPaidAll?.t) || 0,
