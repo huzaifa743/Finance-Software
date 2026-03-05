@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, Trash2, AlertTriangle, Paperclip } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 
 export default function Purchases() {
   const { t } = useLanguage();
@@ -21,6 +22,7 @@ export default function Purchases() {
   const [uploading, setUploading] = useState(false);
   const [query, setQuery] = useState('');
   const [banks, setBanks] = useState([]);
+  const { showSuccess, showError } = useToast();
 
   const load = () => {
     const q = new URLSearchParams();
@@ -94,8 +96,10 @@ export default function Purchases() {
       setModal(null);
       load();
       loadReminders();
+      showSuccess('Purchase saved successfully.');
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to save purchase.');
     }
   };
 
@@ -113,8 +117,10 @@ export default function Purchases() {
       setPayModal(null);
       load();
       loadReminders();
+      showSuccess('Purchase payment recorded.');
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to record payment.');
     }
   };
 
@@ -124,8 +130,10 @@ export default function Purchases() {
       await api.delete(`/purchases/${id}`);
       load();
       loadReminders();
+      showSuccess('Purchase deleted.');
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to delete purchase.');
     }
   };
 
@@ -141,6 +149,7 @@ export default function Purchases() {
       await loadAttachments(p.id);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to load attachments.');
     }
   };
 
@@ -162,6 +171,7 @@ export default function Purchases() {
       await loadAttachments(purchaseId);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to upload attachments.');
     } finally {
       setUploading(false);
     }
@@ -173,6 +183,7 @@ export default function Purchases() {
       await loadAttachments(purchaseId);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to delete attachment.');
     }
   };
 

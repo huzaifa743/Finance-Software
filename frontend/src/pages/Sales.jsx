@@ -3,10 +3,12 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Pencil, Lock, Unlock, Paperclip, Trash2 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 
 export default function Sales() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { showSuccess, showError } = useToast();
   const canLock = user?.role_name === 'Super Admin' || user?.role_name === 'Finance Manager';
   const canMutate = user?.role_name !== 'Auditor';
   const [list, setList] = useState([]);
@@ -126,6 +128,7 @@ export default function Sales() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to save sale.');
     }
   };
 
@@ -135,6 +138,7 @@ export default function Sales() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to update lock status.');
     }
   };
 
@@ -171,6 +175,7 @@ export default function Sales() {
       await loadAttachments(saleId);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to upload attachments.');
     } finally {
       setUploading(false);
     }
@@ -182,6 +187,7 @@ export default function Sales() {
       await loadAttachments(saleId);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to delete attachment.');
     }
   };
 
@@ -202,6 +208,7 @@ export default function Sales() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to delete sale.');
     }
   };
 

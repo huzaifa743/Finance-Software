@@ -13,5 +13,5 @@ git push -u origin main
 
 
 git add .
-git commit -m "Added cards in Dashboard and Language."
+git commit -m "Added Toast Message feature"
 git push origin main

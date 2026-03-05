@@ -3,9 +3,11 @@ import { api } from '../api/client';
 import { Plus, AlertTriangle, FileText, X, Search, FileDown, Printer } from 'lucide-react';
 import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 
 export default function Receivables() {
   const { t } = useLanguage();
+  const { showSuccess, showError } = useToast();
   const [list, setList] = useState([]);
   const [overdue, setOverdue] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -68,8 +70,10 @@ export default function Receivables() {
       await api.post('/receivables', { ...form, amount: form.amount, customer_id: null, branch_id: form.branch_id || null, due_date: form.due_date || null });
       setModal(null);
       load();
+      showSuccess('Receivable added successfully.');
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to add receivable.');
     }
   };
 
@@ -87,8 +91,10 @@ export default function Receivables() {
       });
       setRecoverModal(null);
       load();
+      showSuccess('Recovery recorded successfully.');
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to record recovery.');
     }
   };
 
@@ -102,6 +108,7 @@ export default function Receivables() {
       setBranchLedgerData(d);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to load branch ledger.');
     } finally {
       setBranchLedgerLoading(false);
     }
@@ -124,6 +131,7 @@ export default function Receivables() {
       setBranchRecoverModal(branchRow);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to load branch receivables.');
     }
   };
 
@@ -146,8 +154,10 @@ export default function Receivables() {
       setBranchRecoverModal(null);
       setBranchReceivables([]);
       load();
+      showSuccess('Branch recovery recorded successfully.');
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to record branch recovery.');
     }
   };
 
@@ -248,6 +258,7 @@ export default function Receivables() {
       );
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to export branch ledger.');
     }
   };
 
@@ -302,6 +313,7 @@ export default function Receivables() {
       win.print();
     } catch (e) {
       win.close();
+      showError('Failed to print branch ledger.');
     }
   };
 

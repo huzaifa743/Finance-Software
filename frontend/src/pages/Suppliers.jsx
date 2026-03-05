@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, BookOpen, Search, Trash2, FileDown, Printer, DollarSign } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 
 export default function Suppliers() {
   const { t } = useLanguage();
+  const { showSuccess, showError } = useToast();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -80,6 +82,7 @@ export default function Suppliers() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to save supplier.');
     }
   };
 
@@ -95,6 +98,7 @@ export default function Suppliers() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to delete supplier.');
     }
   };
 
@@ -213,6 +217,7 @@ export default function Suppliers() {
       URL.revokeObjectURL(url);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to export supplier ledger.');
     }
   };
 
@@ -281,6 +286,7 @@ export default function Suppliers() {
       win.print();
     } catch (e) {
       win.close();
+      showError('Failed to print supplier ledger.');
     }
   };
 
@@ -324,6 +330,7 @@ export default function Suppliers() {
       }
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to save supplier payment.');
     }
   };
 

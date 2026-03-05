@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, Trash2, Paperclip, BookOpen, FileDown, Printer, Search } from 'lucide-react';
 import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
+import { useToast } from '../context/ToastContext';
 
 export default function RentBills() {
+  const { showSuccess, showError } = useToast();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -59,6 +61,7 @@ export default function RentBills() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to save rent/bill.');
     }
   };
 
@@ -70,6 +73,7 @@ export default function RentBills() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to delete rent/bill.');
     }
   };
 
@@ -85,6 +89,7 @@ export default function RentBills() {
       await loadAttachments(r.id);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to load documents.');
     }
   };
 
@@ -106,6 +111,7 @@ export default function RentBills() {
       await loadAttachments(id);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to upload documents.');
     } finally {
       setUploading(false);
     }
@@ -117,6 +123,7 @@ export default function RentBills() {
       await loadAttachments(rentBillId);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to delete document.');
     }
   };
 
@@ -143,6 +150,7 @@ export default function RentBills() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to process rent/bill.');
     }
   };
 
@@ -371,6 +379,7 @@ export default function RentBills() {
                 setLedgerData(d);
               } catch (e) {
                 setErr(e.message);
+                showError(e.message || 'Failed to load ledger.');
               } finally {
                 setLedgerLoading(false);
               }
@@ -525,6 +534,7 @@ export default function RentBills() {
                     setLedgerData(d);
                   } catch (error) {
                     setErr(error.message);
+                    showError(error.message || 'Failed to load ledger.');
                   } finally {
                     setLedgerLoading(false);
                   }
@@ -548,7 +558,10 @@ export default function RentBills() {
                     }
                     const blob = await res.blob();
                     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `rent-bills-ledger.xlsx`; a.click(); URL.revokeObjectURL(a.href);
-                  } catch (e) { setErr(e.message); }
+                  } catch (e) {
+                    setErr(e.message);
+                    showError(e.message || 'Failed to export ledger.');
+                  }
                 }}
                 className="btn-secondary"
               >
@@ -605,7 +618,10 @@ export default function RentBills() {
                     }
                     const blob = await res.blob();
                     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `rent-bills-ledger.pdf`; a.click(); URL.revokeObjectURL(a.href);
-                  } catch (e) { setErr(e.message); }
+                  } catch (e) {
+                    setErr(e.message);
+                    showError(e.message || 'Failed to export ledger.');
+                  }
                 }}
                 className="btn-secondary"
               >

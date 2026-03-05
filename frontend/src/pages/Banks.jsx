@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, ArrowRightLeft, TrendingUp } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 
 export default function Banks() {
   const { t } = useLanguage();
+  const { showSuccess, showError } = useToast();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -55,8 +57,10 @@ export default function Banks() {
       else await api.patch(`/banks/${form.id}`, form);
       setModal(null);
       load();
+      showSuccess('Bank saved successfully.');
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to save bank.');
     }
   };
 
@@ -69,6 +73,7 @@ export default function Banks() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to transfer between banks.');
     }
   };
 
@@ -82,6 +87,7 @@ export default function Banks() {
       if (ledgerBank && Number(ledgerBank.id) === Number(txForm.bank_id)) api.get(`/banks/${ledgerBank.id}/ledger`).then(setLedger).catch(() => {});
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to add bank transaction.');
     }
   };
 

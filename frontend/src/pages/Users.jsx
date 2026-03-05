@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Pencil, History, Activity, X } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 
 const ROLE_DISPLAY = {
   'Super Admin': 'Super Admin (Owner)',
@@ -17,6 +18,7 @@ const AUDIT_MODULES = ['', 'settings', 'sales', 'purchases', 'branches', 'users'
 export default function Users() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { showSuccess, showError } = useToast();
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -69,6 +71,7 @@ export default function Users() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to save user.');
     }
   };
 

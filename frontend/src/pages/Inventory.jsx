@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, Trash2, Package, ShoppingCart, Search, X } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 
 export default function Inventory() {
   const { t } = useLanguage();
+  const { showSuccess, showError } = useToast();
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -100,6 +102,7 @@ export default function Inventory() {
       loadProducts();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to save product.');
     }
   };
 
@@ -119,6 +122,7 @@ export default function Inventory() {
       loadSales();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to add sale.');
     }
   };
 
@@ -135,6 +139,7 @@ export default function Inventory() {
       loadSales();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to update sale.');
     }
   };
 
@@ -145,6 +150,7 @@ export default function Inventory() {
       loadProducts();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to delete product.');
     }
   };
 
@@ -155,6 +161,7 @@ export default function Inventory() {
       loadSales();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to delete sale.');
     }
   };
 

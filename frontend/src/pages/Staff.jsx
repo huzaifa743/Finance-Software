@@ -4,9 +4,11 @@ import { Plus, Pencil, DollarSign, FileDown, BookOpen, Printer, Search } from 'l
 import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 import RentBills from './RentBills';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 
 export default function Staff() {
   const { t } = useLanguage();
+  const { showSuccess, showError } = useToast();
   const [list, setList] = useState([]);
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +58,7 @@ export default function Staff() {
       setSlipRecords(d.salary_records || []);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to load salary slips.');
     } finally {
       setSlipLoading(false);
     }
@@ -81,6 +84,7 @@ export default function Staff() {
       URL.revokeObjectURL(url);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to download salary slip.');
     }
   };
 
@@ -94,6 +98,7 @@ export default function Staff() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to save staff.');
     }
   };
 
@@ -106,6 +111,7 @@ export default function Staff() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to process salary.');
     }
   };
 
@@ -122,6 +128,7 @@ export default function Staff() {
       setLedger(d);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to load staff ledger.');
     } finally {
       setLedgerLoading(false);
     }
@@ -211,6 +218,7 @@ export default function Staff() {
       URL.revokeObjectURL(url);
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to export staff ledger.');
     }
   };
 
@@ -283,6 +291,7 @@ export default function Staff() {
       win.print();
     } catch (e) {
       win.close();
+      showError('Failed to print staff ledger.');
     }
   };
 

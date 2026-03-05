@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 import { Save, FileText, X, Upload, Trash2, AlertTriangle } from 'lucide-react';
 
 const AUDIT_MODULES = ['', 'settings', 'sales', 'purchases', 'branches', 'users', 'banks', 'receivables', 'inventory', 'pl', 'staff'];
@@ -25,6 +26,7 @@ function Section({ title, children }) {
 export default function Settings() {
   const { user } = useAuth();
   const { setLanguage } = useLanguage();
+  const { showSuccess, showError } = useToast();
   const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -66,8 +68,10 @@ export default function Settings() {
     setSaving(true);
     try {
       await api.post('/settings/bulk', settings);
+      showSuccess('Settings saved successfully.');
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to save settings.');
     } finally {
       setSaving(false);
     }
@@ -93,8 +97,10 @@ export default function Settings() {
       setLogoFile(null);
       const el = document.getElementById('settings-logo-file');
       if (el) el.value = '';
+      showSuccess('Logo updated successfully.');
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to upload logo.');
     } finally {
       setLogoUploading(false);
     }
@@ -109,11 +115,12 @@ export default function Settings() {
     setClearLoading(true);
     try {
       const res = await api.post('/settings/clear-data', {});
-      alert(res.message || 'All transactional data has been cleared.');
+      showSuccess(res.message || 'All transactional data has been cleared.');
       setClearModalOpen(false);
       setClearConfirm('');
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to clear data.');
     } finally {
       setClearLoading(false);
     }

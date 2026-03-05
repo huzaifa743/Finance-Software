@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { Plus, Pencil, Trash2, MapPin, User, Calendar } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 
 export default function Branches() {
   const { t } = useLanguage();
+  const { showSuccess, showError } = useToast();
   const [list, setList] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -54,8 +56,10 @@ export default function Branches() {
       }
       setModal(null);
       load();
+      showSuccess('Branch saved successfully.');
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to save branch.');
     }
   };
 
@@ -66,6 +70,7 @@ export default function Branches() {
       load();
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to delete branch.');
     }
   };
 

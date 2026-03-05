@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api/client';
 import { CreditCard, FileText, Banknote, Landmark, WalletCards } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useToast } from '../context/ToastContext';
 
 const CATEGORIES = [
   { value: 'rent_bill', label: 'Rent & Bills', icon: FileText, kind: 'give' },
@@ -16,6 +17,7 @@ const FILTER_TYPES = [
 
 export default function Payments() {
   const { t } = useLanguage();
+  const { showSuccess, showError } = useToast();
   const [options, setOptions] = useState({ rent_bills: [], salaries: [], banks: [] });
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -96,8 +98,10 @@ export default function Payments() {
       setRemarks('');
       loadOptions();
       loadRecent();
+      showSuccess('Payment recorded successfully.');
     } catch (e) {
       setErr(e.message);
+      showError(e.message || 'Failed to record payment.');
     } finally {
       setSubmitting(false);
     }
