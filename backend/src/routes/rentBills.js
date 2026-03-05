@@ -38,12 +38,20 @@ router.get('/', authenticate, (req, res) => {
 
 // Ledger: all rent/bills with their payments (must be before /:id)
 router.get('/ledger', authenticate, (req, res) => {
-  const { category } = req.query;
+  const { category, from, to } = req.query;
   let sql = 'SELECT * FROM rent_bills WHERE 1=1';
   const params = [];
   if (category) {
     sql += ' AND category = ?';
     params.push(category);
+  }
+  if (from) {
+    sql += ' AND due_date >= ?';
+    params.push(from);
+  }
+  if (to) {
+    sql += ' AND due_date <= ?';
+    params.push(to);
   }
   sql += ' ORDER BY due_date ASC, id DESC';
   const bills = db.prepare(sql).all(...params);
@@ -75,25 +83,46 @@ router.get('/ledger', authenticate, (req, res) => {
 // Single rent/bill ledger by title (all monthly entries + payments) - same shape as staff ledger
 router.get('/:id/ledger', authenticate, (req, res) => {
   const { id } = req.params;
+  const { from, to } = req.query;
   const bill = db.prepare('SELECT * FROM rent_bills WHERE id = ?').get(id);
   if (!bill) return res.status(404).json({ error: 'Rent/Bill not found.' });
 
   const title = bill.title;
   // All monthly records (processed entries) for this bill title
-  const recordsRaw = db.prepare(`
+  let recSql = `
     SELECT * FROM rent_bills
     WHERE title = ? AND due_date IS NOT NULL
-    ORDER BY due_date DESC
-  `).all(title);
+  `;
+  const recParams = [title];
+  if (from) {
+    recSql += ' AND substr(due_date, 1, 7) >= ?';
+    recParams.push(from);
+  }
+  if (to) {
+    recSql += ' AND substr(due_date, 1, 7) <= ?';
+    recParams.push(to);
+  }
+  recSql += ' ORDER BY due_date DESC';
+  const recordsRaw = db.prepare(recSql).all(...recParams);
 
-  const payments = db.prepare(`
+  let paySql = `
     SELECT p.*, b.name as bank_name, substr(rb.due_date, 1, 7) as month_year
     FROM payments p
     LEFT JOIN banks b ON p.bank_id = b.id
     JOIN rent_bills rb ON p.reference_type = 'rent_bill' AND p.reference_id = rb.id
     WHERE rb.title = ?
-    ORDER BY p.payment_date DESC, p.id DESC
-  `).all(title);
+  `;
+  const payParams = [title];
+  if (from) {
+    paySql += ' AND substr(rb.due_date, 1, 7) >= ?';
+    payParams.push(from);
+  }
+  if (to) {
+    paySql += ' AND substr(rb.due_date, 1, 7) <= ?';
+    payParams.push(to);
+  }
+  paySql += ' ORDER BY p.payment_date DESC, p.id DESC';
+  const payments = db.prepare(paySql).all(...payParams);
 
   const monthYear = (dueDate) => dueDate ? String(dueDate).slice(0, 7) : null;
   const byRecord = new Map();
@@ -139,7 +168,7 @@ router.get('/:id/ledger', authenticate, (req, res) => {
 });
 
 router.get('/ledger/export', authenticate, async (req, res) => {
-  const { type, category } = req.query;
+  const { type, category, from, to } = req.query;
   if (!type) return res.status(400).json({ error: 'type is required (pdf or xlsx)' });
 
   let sql = 'SELECT * FROM rent_bills WHERE 1=1';
@@ -147,6 +176,14 @@ router.get('/ledger/export', authenticate, async (req, res) => {
   if (category) {
     sql += ' AND category = ?';
     params.push(category);
+  }
+  if (from) {
+    sql += ' AND due_date >= ?';
+    params.push(from);
+  }
+  if (to) {
+    sql += ' AND due_date <= ?';
+    params.push(to);
   }
   sql += ' ORDER BY due_date ASC, id DESC';
   const bills = db.prepare(sql).all(...params);
@@ -222,27 +259,47 @@ router.get('/ledger/export', authenticate, async (req, res) => {
 // Single rent/bill ledger export (by title - monthly records + payments, same as staff)
 router.get('/:id/ledger/export', authenticate, async (req, res) => {
   const { id } = req.params;
-  const { type } = req.query;
+  const { type, from, to } = req.query;
   if (!type) return res.status(400).json({ error: 'type is required (pdf or xlsx)' });
 
   const bill = db.prepare('SELECT * FROM rent_bills WHERE id = ?').get(id);
   if (!bill) return res.status(404).json({ error: 'Rent/Bill not found.' });
 
   const title = bill.title;
-  const recordsRaw = db.prepare(`
+  let recSql = `
     SELECT * FROM rent_bills
     WHERE title = ? AND due_date IS NOT NULL
-    ORDER BY due_date DESC
-  `).all(title);
+  `;
+  const recParams = [title];
+  if (from) {
+    recSql += ' AND substr(due_date, 1, 7) >= ?';
+    recParams.push(from);
+  }
+  if (to) {
+    recSql += ' AND substr(due_date, 1, 7) <= ?';
+    recParams.push(to);
+  }
+  recSql += ' ORDER BY due_date DESC';
+  const recordsRaw = db.prepare(recSql).all(...recParams);
 
-  const payments = db.prepare(`
+  let paySql = `
     SELECT p.*, b.name as bank_name, substr(rb.due_date, 1, 7) as month_year
     FROM payments p
     LEFT JOIN banks b ON p.bank_id = b.id
     JOIN rent_bills rb ON p.reference_type = 'rent_bill' AND p.reference_id = rb.id
     WHERE rb.title = ?
-    ORDER BY p.payment_date DESC, p.id DESC
-  `).all(title);
+  `;
+  const payParams = [title];
+  if (from) {
+    paySql += ' AND substr(rb.due_date, 1, 7) >= ?';
+    payParams.push(from);
+  }
+  if (to) {
+    paySql += ' AND substr(rb.due_date, 1, 7) <= ?';
+    payParams.push(to);
+  }
+  paySql += ' ORDER BY p.payment_date DESC, p.id DESC';
+  const payments = db.prepare(paySql).all(...payParams);
 
   const monthYear = (d) => d ? String(d).slice(0, 7) : null;
   const byRecord = new Map();

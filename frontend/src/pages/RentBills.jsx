@@ -3,9 +3,11 @@ import { api } from '../api/client';
 import { Plus, Pencil, Trash2, Paperclip, BookOpen, FileDown, Printer, Search } from 'lucide-react';
 import { getCompanyForPrint, buildPrintHeaderHtml, exportPrintAsPdf, buildPrintDocumentHtml } from '../utils/printHeader';
 import { useToast } from '../context/ToastContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function RentBills() {
   const { showSuccess, showError } = useToast();
+  const { t } = useLanguage();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -25,6 +27,10 @@ export default function RentBills() {
   const [entryLedgerLoading, setEntryLedgerLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [ledgerQuery, setLedgerQuery] = useState('');
+  const [ledgerFrom, setLedgerFrom] = useState('');
+  const [ledgerTo, setLedgerTo] = useState('');
+  const [entryFrom, setEntryFrom] = useState('');
+  const [entryTo, setEntryTo] = useState('');
   const [processBill, setProcessBill] = useState(null);
   const [processForm, setProcessForm] = useState({ month_year: '', amount: '' });
 
@@ -341,11 +347,19 @@ export default function RentBills() {
     : byCategory;
 
   const ledgerNeedle = ledgerQuery.trim().toLowerCase();
+  const inEntryMonthRange = (month) => {
+    if (!month) return true;
+    if (entryFrom && month < entryFrom) return false;
+    if (entryTo && month > entryTo) return false;
+    return true;
+  };
   const filteredEntrySalaries = entryLedgerData?.salaries
     ? (ledgerNeedle
         ? entryLedgerData.salaries.filter((r) => {
             const hay = [r.month_year, r.amount, r.paid_amount, r.remaining_amount, r.status].map(normalize).join(' ');
-            return hay.includes(ledgerNeedle);
+            const matchesSearch = hay.includes(ledgerNeedle);
+            const inRange = inEntryMonthRange(r.month_year);
+            return matchesSearch && inRange;
           })
         : entryLedgerData.salaries)
     : [];
@@ -353,16 +367,28 @@ export default function RentBills() {
     ? (ledgerNeedle
         ? entryLedgerData.payments.filter((p) => {
             const hay = [p.payment_date, p.month_year, p.mode, p.amount, p.remarks].map(normalize).join(' ');
-            return hay.includes(ledgerNeedle);
+            const matchesSearch = hay.includes(ledgerNeedle);
+            const inRange = inEntryMonthRange(p.month_year);
+            return matchesSearch && inRange;
           })
         : entryLedgerData.payments)
+    : [];
+
+  const filteredLedgerItems = ledgerData
+    ? (ledgerData.items || []).filter((item) => {
+        const d = item.bill?.due_date;
+        if (!d) return true;
+        if (ledgerFrom && d < ledgerFrom) return false;
+        if (ledgerTo && d > ledgerTo) return false;
+        return true;
+      })
     : [];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Rent & Bills</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('nav.staff') /* close enough label for Rent & Bills section */}</h1>
           <p className="text-slate-500 mt-1">
             Add rent and bills once, attach documents, then process each month from the action column. Pay from the Payments screen.
           </p>
@@ -374,6 +400,8 @@ export default function RentBills() {
               setLedgerData(null);
               setLedgerLoading(true);
               setLedgerCategory('');
+              setLedgerFrom('');
+              setLedgerTo('');
               try {
                 const d = await api.get('/rent-bills/ledger');
                 setLedgerData(d);
@@ -388,7 +416,7 @@ export default function RentBills() {
           >
             <BookOpen className="w-4 h-4" /> Ledger
           </button>
-          <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Rent / Bill</button>
+          <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> {t('actions.addRentBill')}</button>
         </div>
       </div>
 
@@ -471,20 +499,20 @@ export default function RentBills() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold text-slate-900 mb-4">
-              {modal === 'add' ? 'Add Rent / Bill' : 'Edit Rent / Bill'}
+              {modal === 'add' ? t('actions.addRentBill') : 'Edit Rent / Bill'}
             </h2>
             <form onSubmit={save} className="space-y-4">
-              <div><label className="label">Title *</label><input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required placeholder="e.g. Office Rent Jan 2025" /></div>
+              <div><label className="label">{t('form.title')} *</label><input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required placeholder="e.g. Office Rent Jan 2025" /></div>
               <div>
-                <label className="label">Category</label>
+                <label className="label">{t('form.category')}</label>
                 <select className="input" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
                   <option value="rent">Rent</option>
                   <option value="bill">Bill</option>
                 </select>
               </div>
-              <div><label className="label">Amount *</label><input type="number" step="0.01" className="input" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required /></div>
-              <div><label className="label">Remarks</label><input className="input" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} /></div>
-              <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Save</button><button type="button" onClick={() => { setModal(null); setEditing(null); }} className="btn-secondary">Cancel</button></div>
+              <div><label className="label">{t('form.amount')} *</label><input type="number" step="0.01" className="input" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required /></div>
+              <div><label className="label">{t('form.remarks')}</label><input className="input" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} /></div>
+              <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">{t('common.save')}</button><button type="button" onClick={() => { setModal(null); setEditing(null); }} className="btn-secondary">{t('common.cancel')}</button></div>
             </form>
           </div>
         </div>
@@ -517,7 +545,7 @@ export default function RentBills() {
 
       {ledgerModal && (
         <div className="fixed inset-0 z-50 flex flex-col bg-white">
-          <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 bg-slate-50">
             <h2 className="text-xl font-semibold text-slate-900">Rent & Bills Ledger</h2>
             <div className="flex items-center gap-2">
               <select
@@ -529,8 +557,12 @@ export default function RentBills() {
                   setLedgerLoading(true);
                   setErr('');
                   try {
-                    const qs = v ? `?category=${encodeURIComponent(v)}` : '';
-                    const d = await api.get(`/rent-bills/ledger${qs}`);
+                    const qs = new URLSearchParams();
+                    if (v) qs.set('category', v);
+                    if (ledgerFrom) qs.set('from', ledgerFrom);
+                    if (ledgerTo) qs.set('to', ledgerTo);
+                    const path = qs.toString() ? `/rent-bills/ledger?${qs.toString()}` : '/rent-bills/ledger';
+                    const d = await api.get(path);
                     setLedgerData(d);
                   } catch (error) {
                     setErr(error.message);
@@ -544,14 +576,72 @@ export default function RentBills() {
                 <option value="rent">Rent only</option>
                 <option value="bill">Bills only</option>
               </select>
+              <div className="flex items-center gap-2 text-xs text-slate-700">
+                <span>{t('form.fromDate')}</span>
+                <input
+                  type="date"
+                  className="input w-32"
+                  value={ledgerFrom}
+                  onChange={async (e) => {
+                    const v = e.target.value;
+                    setLedgerFrom(v);
+                    if (!ledgerModal) return;
+                    setLedgerLoading(true);
+                    setErr('');
+                    try {
+                      const qs = new URLSearchParams();
+                      if (ledgerCategory) qs.set('category', ledgerCategory);
+                      if (v) qs.set('from', v);
+                      if (ledgerTo) qs.set('to', ledgerTo);
+                      const path = qs.toString() ? `/rent-bills/ledger?${qs.toString()}` : '/rent-bills/ledger';
+                      const d = await api.get(path);
+                      setLedgerData(d);
+                    } catch (error) {
+                      setErr(error.message);
+                      showError(error.message || 'Failed to load ledger.');
+                    } finally {
+                      setLedgerLoading(false);
+                    }
+                  }}
+                />
+                <span>{t('form.toDate')}</span>
+                <input
+                  type="date"
+                  className="input w-32"
+                  value={ledgerTo}
+                  onChange={async (e) => {
+                    const v = e.target.value;
+                    setLedgerTo(v);
+                    if (!ledgerModal) return;
+                    setLedgerLoading(true);
+                    setErr('');
+                    try {
+                      const qs = new URLSearchParams();
+                      if (ledgerCategory) qs.set('category', ledgerCategory);
+                      if (ledgerFrom) qs.set('from', ledgerFrom);
+                      if (v) qs.set('to', v);
+                      const path = qs.toString() ? `/rent-bills/ledger?${qs.toString()}` : '/rent-bills/ledger';
+                      const d = await api.get(path);
+                      setLedgerData(d);
+                    } catch (error) {
+                      setErr(error.message);
+                      showError(error.message || 'Failed to load ledger.');
+                    } finally {
+                      setLedgerLoading(false);
+                    }
+                  }}
+                />
+              </div>
               <button
                 onClick={async () => {
                   try {
                     setErr('');
-                    const token = localStorage.getItem('token');
-                    const q = new URLSearchParams({ type: 'xlsx' });
-                    if (ledgerCategory) q.set('category', ledgerCategory);
-                    const res = await fetch(`/api/rent-bills/ledger/export?${q.toString()}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+                const token = localStorage.getItem('token');
+                const q = new URLSearchParams({ type: 'xlsx' });
+                if (ledgerCategory) q.set('category', ledgerCategory);
+                if (ledgerFrom) q.set('from', ledgerFrom);
+                if (ledgerTo) q.set('to', ledgerTo);
+                const res = await fetch(`/api/rent-bills/ledger/export?${q.toString()}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
                     if (!res.ok) {
                       const d = await res.json().catch(() => ({}));
                       throw new Error(d.error || res.statusText || 'Export failed');
@@ -611,6 +701,8 @@ export default function RentBills() {
                     const token = localStorage.getItem('token');
                     const q = new URLSearchParams({ type: 'pdf' });
                     if (ledgerCategory) q.set('category', ledgerCategory);
+                    if (ledgerFrom) q.set('from', ledgerFrom);
+                    if (ledgerTo) q.set('to', ledgerTo);
                     const res = await fetch(`/api/rent-bills/ledger/export?${q.toString()}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
                     if (!res.ok) {
                       const d = await res.json().catch(() => ({}));
@@ -653,7 +745,7 @@ export default function RentBills() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {(ledgerData.items || []).map((item) => (
+                    {filteredLedgerItems.map((item) => (
                       <tr key={item.bill.id} className="hover:bg-slate-50">
                         <td className="px-4 py-3 font-medium">{item.bill.title}</td>
                         <td className="px-4 py-3 capitalize">{item.bill.category || 'bill'}</td>
@@ -740,11 +832,27 @@ export default function RentBills() {
                     <span>Search</span>
                   </div>
                   <input
-                    className="input w-full md:w-[520px]"
+                    className="input w-full md:w-[260px]"
                     placeholder="Search ledger by month, amount, status, remarks"
                     value={ledgerQuery}
                     onChange={(e) => setLedgerQuery(e.target.value)}
                   />
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+                    <span>{t('form.fromMonth')}</span>
+                    <input
+                      type="month"
+                      className="input w-32"
+                      value={entryFrom}
+                      onChange={(e) => setEntryFrom(e.target.value)}
+                    />
+                    <span>{t('form.toMonth')}</span>
+                    <input
+                      type="month"
+                      className="input w-32"
+                      value={entryTo}
+                      onChange={(e) => setEntryTo(e.target.value)}
+                    />
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto mt-4">

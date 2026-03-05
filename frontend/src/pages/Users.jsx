@@ -95,7 +95,7 @@ export default function Users() {
         <div className="flex flex-wrap gap-2">
           <button onClick={openLoginHistory} className="btn-secondary"><History className="w-4 h-4" /> Login History</button>
           <button onClick={openActivityLogs} className="btn-secondary"><Activity className="w-4 h-4" /> Activity Logs</button>
-          {canMutate && <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add User</button>}
+          {canMutate && <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> {t('actions.addUser')}</button>}
         </div>
       </div>
 
@@ -134,16 +134,18 @@ export default function Users() {
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">{modal === 'add' ? 'Add User' : 'Edit User'}</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">
+              {modal === 'add' ? t('actions.addUser') : 'Edit User'}
+            </h2>
             <form onSubmit={save} className="space-y-4">
-              <div><label className="label">Name *</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+              <div><label className="label">{t('form.name')} *</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
               <div><label className="label">Email *</label><input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required disabled={modal === 'edit'} /></div>
               {modal === 'add' && <div><label className="label">Password</label><input type="password" className="input" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="user123" /></div>}
               {modal === 'edit' && <div><label className="label">New password (leave blank to keep)</label><input type="password" className="input" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>}
               <div><label className="label">Role *</label><select className="input" value={form.role_id} onChange={(e) => setForm({ ...form, role_id: e.target.value })} required>{roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></div>
-              <div><label className="label">Branch</label><select className="input" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}><option value="">–</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
-              {modal === 'edit' && <div className="flex items-center gap-2"><input type="checkbox" id="active" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} /><label htmlFor="active">Active</label></div>}
-              <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Save</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button></div>
+              <div><label className="label">{t('form.branch')}</label><select className="input" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}><option value="">–</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+              {modal === 'edit' && <div className="flex items-center gap-2"><input type="checkbox" id="active" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} /><label htmlFor="active">{t('form.active')}</label></div>}
+              <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">{t('common.save')}</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">{t('common.cancel')}</button></div>
             </form>
           </div>
         </div>

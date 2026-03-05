@@ -186,8 +186,15 @@ export default function Inventory() {
           <p className="text-slate-500 mt-1">Add product details · Enter date when sold · Add sold quantity</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={openProductAdd} className="btn-secondary"><Package className="w-4 h-4" /> Add Product Details</button>
-          <button onClick={openSaleAdd} className="btn-primary" disabled={!products.length} title={!products.length ? 'Add at least one product first' : ''}><ShoppingCart className="w-4 h-4" /> Add Sale</button>
+          <button onClick={openProductAdd} className="btn-secondary"><Package className="w-4 h-4" /> {t('actions.addInventoryProduct') || 'Add Product Details'}</button>
+          <button
+            onClick={openSaleAdd}
+            className="btn-primary"
+            disabled={!products.length}
+            title={!products.length ? 'Add at least one product first' : ''}
+          >
+            <ShoppingCart className="w-4 h-4" /> {t('actions.addSale')}
+          </button>
         </div>
       </div>
 
@@ -321,11 +328,36 @@ export default function Inventory() {
       {productModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">{productModal === 'add' ? 'Add Product Details' : 'Edit Product Details'}</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">
+              {productModal === 'add' ? (t('actions.addInventoryProduct') || 'Add Product Details') : 'Edit Product Details'}
+            </h2>
             <form onSubmit={saveProduct} className="space-y-4">
-              <div><label className="label">Product name *</label><input className="input" value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} placeholder="e.g. Widget A" required /></div>
-              <div><label className="label">Unit price</label><input type="number" step="0.01" min="0" className="input" value={productForm.unit_price} onChange={(e) => setProductForm({ ...productForm, unit_price: e.target.value })} placeholder="0" /></div>
-              <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Save</button><button type="button" onClick={() => setProductModal(null)} className="btn-secondary">Cancel</button></div>
+              <div>
+                <label className="label">{t('form.product')} *</label>
+                <input
+                  className="input"
+                  value={productForm.name}
+                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                  placeholder="e.g. Widget A"
+                  required
+                />
+              </div>
+              <div>
+                <label className="label">{t('col.unitPrice')}</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="input"
+                  value={productForm.unit_price}
+                  onChange={(e) => setProductForm({ ...productForm, unit_price: e.target.value })}
+                  placeholder="0"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="submit" className="btn-primary">{t('common.save')}</button>
+                <button type="button" onClick={() => setProductModal(null)} className="btn-secondary">{t('common.cancel')}</button>
+              </div>
             </form>
           </div>
         </div>
@@ -334,18 +366,20 @@ export default function Inventory() {
       {saleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Add Sale</h2>
-            <p className="text-sm text-slate-500 mb-4">Search a product, select from the dropdown, then enter date and quantity.</p>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">{t('actions.addSale')}</h2>
+            <p className="text-sm text-slate-500 mb-4">
+              {t('inventory.saleHint') || 'Search a product, select from the dropdown, then enter date and quantity.'}
+            </p>
             <form onSubmit={saveSale} className="space-y-4">
               <div ref={saleProductDropdownRef} className="relative">
-                <label className="label">Product *</label>
+                <label className="label">{t('form.product')} *</label>
                 <div className="flex gap-1">
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                     <input
                       type="text"
                       className="input pl-9 pr-9"
-                      placeholder={saleForm.product_id ? '' : 'Search product by name...'}
+                      placeholder={saleForm.product_id ? '' : (t('inventory.searchProductPlaceholder') || 'Search product by name...')}
                       value={saleProductSearch}
                       onChange={(e) => {
                         setSaleProductSearch(e.target.value);
@@ -380,12 +414,12 @@ export default function Inventory() {
                   </div>
                 )}
               </div>
-              <div><label className="label">Date when sold *</label><input type="date" className="input" value={saleForm.sale_date} onChange={(e) => setSaleForm({ ...saleForm, sale_date: e.target.value })} required /></div>
-              <div><label className="label">Sold quantity *</label><input type="number" min="1" className="input" value={saleForm.quantity} onChange={(e) => setSaleForm({ ...saleForm, quantity: e.target.value })} placeholder="e.g. 10" required /></div>
-              <div><label className="label">Branch</label><select className="input" value={saleForm.branch_id} onChange={(e) => setSaleForm({ ...saleForm, branch_id: e.target.value })}><option value="">–</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
-              <div><label className="label">Unit price <span className="text-slate-400 font-normal">(optional, uses product default)</span></label><input type="number" step="0.01" min="0" className="input" value={saleForm.unit_price} onChange={(e) => setSaleForm({ ...saleForm, unit_price: e.target.value })} placeholder="Override if needed" /></div>
-              <p className="text-sm font-medium text-slate-700">Total: {fmt(saleTotal)}</p>
-              <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary" disabled={!saleForm.product_id}>Save</button><button type="button" onClick={() => { setSaleModal(false); setSaleProductSearch(''); setSaleProductDropdownOpen(false); }} className="btn-secondary">Cancel</button></div>
+              <div><label className="label">{t('col.date')} *</label><input type="date" className="input" value={saleForm.sale_date} onChange={(e) => setSaleForm({ ...saleForm, sale_date: e.target.value })} required /></div>
+              <div><label className="label">{t('col.soldQuantity')} *</label><input type="number" min="1" className="input" value={saleForm.quantity} onChange={(e) => setSaleForm({ ...saleForm, quantity: e.target.value })} placeholder="e.g. 10" required /></div>
+              <div><label className="label">{t('form.branch')}</label><select className="input" value={saleForm.branch_id} onChange={(e) => setSaleForm({ ...saleForm, branch_id: e.target.value })}><option value="">–</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+              <div><label className="label">{t('col.unitPrice')} <span className="text-slate-400 font-normal">(optional, uses product default)</span></label><input type="number" step="0.01" min="0" className="input" value={saleForm.unit_price} onChange={(e) => setSaleForm({ ...saleForm, unit_price: e.target.value })} placeholder="Override if needed" /></div>
+              <p className="text-sm font-medium text-slate-700">{t('col.total')}: {fmt(saleTotal)}</p>
+              <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary" disabled={!saleForm.product_id}>{t('common.save')}</button><button type="button" onClick={() => { setSaleModal(false); setSaleProductSearch(''); setSaleProductDropdownOpen(false); }} className="btn-secondary">{t('common.cancel')}</button></div>
             </form>
           </div>
         </div>

@@ -101,8 +101,8 @@ export default function Banks() {
           <p className="text-slate-500 mt-1">Accounts, deposits, payments, transfers, reconciliation</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={openTransfer} className="btn-secondary"><ArrowRightLeft className="w-4 h-4" /> Transfer</button>
-          <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Bank</button>
+          <button onClick={openTransfer} className="btn-secondary"><ArrowRightLeft className="w-4 h-4" /> {t('actions.transfer')}</button>
+          <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> {t('actions.addBank')}</button>
         </div>
       </div>
 
@@ -156,13 +156,34 @@ export default function Banks() {
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-md p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">{modal === 'add' ? 'Add Bank' : 'Edit Bank'}</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">
+              {modal === 'add' ? t('actions.addBank') : 'Edit Bank'}
+            </h2>
             <form onSubmit={save} className="space-y-4">
-              <div><label className="label">Name *</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
-              <div><label className="label">Account #</label><input className="input" value={form.account_number} onChange={(e) => setForm({ ...form, account_number: e.target.value })} /></div>
-              {modal === 'add' && <div><label className="label">Opening Balance</label><input type="number" step="0.01" className="input" value={form.opening_balance} onChange={(e) => setForm({ ...form, opening_balance: e.target.value })} /></div>}
-              {modal === 'edit' && <div><label className="label">Opening Balance</label><input type="number" step="0.01" className="input" value={form.opening_balance} onChange={(e) => setForm({ ...form, opening_balance: e.target.value })} /></div>}
-              <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Save</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button></div>
+              <div>
+                <label className="label">{t('form.name')} *</label>
+                <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+              </div>
+              <div>
+                <label className="label">{t('form.accountNumber')}</label>
+                <input className="input" value={form.account_number} onChange={(e) => setForm({ ...form, account_number: e.target.value })} />
+              </div>
+              {modal === 'add' && (
+                <div>
+                  <label className="label">{t('form.openingBalance')}</label>
+                  <input type="number" step="0.01" className="input" value={form.opening_balance} onChange={(e) => setForm({ ...form, opening_balance: e.target.value })} />
+                </div>
+              )}
+              {modal === 'edit' && (
+                <div>
+                  <label className="label">{t('form.openingBalance')}</label>
+                  <input type="number" step="0.01" className="input" value={form.opening_balance} onChange={(e) => setForm({ ...form, opening_balance: e.target.value })} />
+                </div>
+              )}
+              <div className="flex gap-3 pt-4">
+                <button type="submit" className="btn-primary">{t('common.save')}</button>
+                <button type="button" onClick={() => setModal(null)} className="btn-secondary">{t('common.cancel')}</button>
+              </div>
             </form>
           </div>
         </div>

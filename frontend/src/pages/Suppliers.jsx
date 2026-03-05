@@ -339,9 +339,9 @@ export default function Suppliers() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('page.suppliers.title')}</h1>
-          <p className="text-slate-500 mt-1">Suppliers list and ledger</p>
+          <p className="text-slate-500 mt-1">{t('suppliers.subtitle')}</p>
         </div>
-        <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Supplier</button>
+        <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> {t('actions.addSupplier')}</button>
       </div>
 
       {err && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">{err}</div>}
@@ -362,7 +362,7 @@ export default function Suppliers() {
           </div>
         </div>
         <div className="card p-4">
-          <p className="text-sm font-medium text-slate-600">Total pending balance (all suppliers)</p>
+          <p className="text-sm font-medium text-slate-600">{t('suppliers.totalPendingAll')}</p>
           <p className="mt-1 text-2xl font-bold text-rose-700 font-mono">{fmt(totalPendingSuppliers)}</p>
         </div>
       </div>
@@ -518,14 +518,34 @@ export default function Suppliers() {
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">{modal === 'add' ? 'Add Supplier' : 'Edit Supplier'}</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">
+              {modal === 'add' ? t('actions.addSupplier') : 'Edit Supplier'}
+            </h2>
             <form onSubmit={save} className="space-y-4">
-              <div><label className="label">Name *</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
-              <div><label className="label">Address</label><input className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
-              <div><label className="label">Phone</label><input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-              <div><label className="label">VAT Number</label><input className="input" value={form.vat_number} onChange={(e) => setForm({ ...form, vat_number: e.target.value })} /></div>
-              <div><label className="label">Contact (other)</label><input className="input" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} placeholder="Email or contact person" /></div>
-              <div className="flex gap-3"><button type="submit" className="btn-primary">{modal === 'add' ? 'Add' : 'Update'}</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button></div>
+              <div>
+                <label className="label">{t('form.name')} *</label>
+                <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+              </div>
+              <div>
+                <label className="label">{t('form.address')}</label>
+                <input className="input" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">{t('form.phone')}</label>
+                <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">{t('form.vatNumber')}</label>
+                <input className="input" value={form.vat_number} onChange={(e) => setForm({ ...form, vat_number: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">{t('form.contactOther')}</label>
+                <input className="input" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} placeholder="Email or contact person" />
+              </div>
+              <div className="flex gap-3">
+                <button type="submit" className="btn-primary">{t('common.save')}</button>
+                <button type="button" onClick={() => setModal(null)} className="btn-secondary">{t('common.cancel')}</button>
+              </div>
             </form>
           </div>
         </div>

@@ -322,9 +322,9 @@ export default function Receivables() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">{t('page.receivables.title')}</h1>
-          <p className="text-slate-500 mt-1">Branch-wise receivables, recovery, overdue alerts</p>
+          <p className="text-slate-500 mt-1">{t('receivables.subtitle')}</p>
         </div>
-        <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Receivable</button>
+        <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> {t('actions.addReceivable')}</button>
       </div>
 
       {err && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">{err}</div>}
@@ -424,10 +424,10 @@ export default function Receivables() {
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-lg p-6">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Add Receivable</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">{t('actions.addReceivable')}</h2>
             <form onSubmit={save} className="space-y-4">
               <div>
-                <label className="label">Branch *</label>
+                <label className="label">{t('form.branch')} *</label>
                 <select
                   className="input"
                   value={form.branch_id}
@@ -450,9 +450,18 @@ export default function Receivables() {
                   </p>
                 )}
               </div>
-              <div><label className="label">Amount *</label><input type="number" step="0.01" className="input" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required /></div>
-              <div><label className="label">Due Date</label><input type="date" className="input" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /></div>
-              <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Save</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button></div>
+              <div>
+                <label className="label">{t('form.amount')} *</label>
+                <input type="number" step="0.01" className="input" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
+              </div>
+              <div>
+                <label className="label">{t('form.dueDate')}</label>
+                <input type="date" className="input" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="submit" className="btn-primary">{t('common.save')}</button>
+                <button type="button" onClick={() => setModal(null)} className="btn-secondary">{t('common.cancel')}</button>
+              </div>
             </form>
           </div>
         </div>

@@ -219,7 +219,7 @@ export default function Sales() {
           <h1 className="text-2xl font-bold text-slate-900">{t('page.sales.title')}</h1>
           <p className="text-slate-500 mt-1">Daily sales entry, cash / bank / credit, discount & returns</p>
         </div>
-        {canMutate && <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Sale</button>}
+        {canMutate && <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> {t('actions.addSale')}</button>}
       </div>
 
       {err && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">{err}</div>}
@@ -347,24 +347,26 @@ export default function Sales() {
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">{modal === 'add' ? 'Add Sale' : 'Edit Sale'}</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">
+              {modal === 'add' ? t('actions.addSale') : 'Edit Sale'}
+            </h2>
             <form onSubmit={save} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Branch</label>
+                  <label className="label">{t('form.branch')}</label>
                   <select className="input" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}>
                     <option value="">–</option>
                     {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="label">Date *</label>
+                  <label className="label">{t('form.date')} *</label>
                   <input type="date" className="input" value={form.sale_date} onChange={(e) => setForm({ ...form, sale_date: e.target.value })} required />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Type</label>
+                  <label className="label">{t('form.type')}</label>
                   <select className="input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
                     <option value="cash">Cash</option>
                     <option value="bank">Bank</option>
@@ -372,7 +374,7 @@ export default function Sales() {
                   </select>
                 </div>
                 <div>
-                  <label className="label">Due Date (optional)</label>
+                  <label className="label">{t('form.dueDate')} (optional)</label>
                   <input
                     type="date"
                     className="input"
@@ -388,7 +390,7 @@ export default function Sales() {
               </div>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="label">Bank allocations</label>
+                  <label className="label">{t('form.bank')} allocations</label>
                   <button
                     type="button"
                     className="text-xs text-primary-600 hover:underline"
@@ -457,14 +459,14 @@ export default function Sales() {
                 <p className="text-xs text-slate-500">Total bank amount: {fmt(bankTotal())}</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><label className="label">Discount</label><input type="number" step="0.01" className="input" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} /></div>
-                <div><label className="label">Returns</label><input type="number" step="0.01" className="input" value={form.returns_amount} onChange={(e) => setForm({ ...form, returns_amount: e.target.value })} /></div>
+                <div><label className="label">{t('col.discount')}</label><input type="number" step="0.01" className="input" value={form.discount} onChange={(e) => setForm({ ...form, discount: e.target.value })} /></div>
+                <div><label className="label">{t('col.returns')}</label><input type="number" step="0.01" className="input" value={form.returns_amount} onChange={(e) => setForm({ ...form, returns_amount: e.target.value })} /></div>
               </div>
               <p className="text-sm font-medium text-slate-700">Net sales: {fmt(net())}</p>
-              <div><label className="label">Remarks</label><input className="input" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} /></div>
+              <div><label className="label">{t('form.remarks')}</label><input className="input" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} /></div>
               <div className="flex gap-3 pt-4">
-                <button type="submit" className="btn-primary">Save</button>
-                <button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
+                <button type="submit" className="btn-primary">{t('common.save')}</button>
+                <button type="button" onClick={() => setModal(null)} className="btn-secondary">{t('common.cancel')}</button>
               </div>
             </form>
           </div>

@@ -5,14 +5,14 @@ import { useLanguage } from '../context/LanguageContext';
 import { useToast } from '../context/ToastContext';
 
 const CATEGORIES = [
-  { value: 'rent_bill', label: 'Rent & Bills', icon: FileText, kind: 'give' },
-  { value: 'salary', label: 'Salaries', icon: Banknote, kind: 'give' },
+  { value: 'rent_bill', labelKey: 'payments.rentBillLabel', fallback: 'Rent & Bills', icon: FileText, kind: 'give' },
+  { value: 'salary', labelKey: 'dashboard.card.salariesPayable', fallback: 'Salaries', icon: Banknote, kind: 'give' },
 ];
 
 const FILTER_TYPES = [
-  { value: '', label: 'All types' },
-  { value: 'rent_bill', label: 'Rent & Bills' },
-  { value: 'salary', label: 'Salary' },
+  { value: '', labelKey: 'payments.filter.allTypes', fallback: 'All types' },
+  { value: 'rent_bill', labelKey: 'payments.filter.rentBills', fallback: 'Rent & Bills' },
+  { value: 'salary', labelKey: 'payments.filter.salary', fallback: 'Salary' },
 ];
 
 export default function Payments() {
@@ -129,7 +129,10 @@ export default function Payments() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">{t('page.payments.title')}</h1>
-        <p className="text-slate-500 mt-1">Record any payment (send) or receipt (receive from customer). Pay suppliers, rent & bills, salaries; receive from customers. Balance shown where applicable.</p>
+        <p className="text-slate-500 mt-1">
+          {/* Description left English for now; can be translated similarly if needed */}
+          Record any payment (send) or receipt (receive from customer). Pay suppliers, rent &amp; bills, salaries; receive from customers. Balance shown where applicable.
+        </p>
       </div>
 
       {err && <div className="rounded-lg bg-red-50 border border-red-200 p-4 text-red-700">{err}</div>}
@@ -138,13 +141,13 @@ export default function Payments() {
         <div className="flex flex-col gap-6 lg:flex-row">
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-              <CreditCard className="w-5 h-5" /> Record payment
+              <CreditCard className="w-5 h-5" /> {t('payments.heading')}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="label">Type</label>
+                <label className="label">{t('payments.typeLabel')}</label>
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Type</p>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{t('payments.typeLabel')}</p>
                   <div className="flex flex-wrap gap-2">
                     {CATEGORIES.filter((c) => c.kind === 'give').map((c) => (
                       <button
@@ -157,7 +160,7 @@ export default function Payments() {
                             : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                         }`}
                       >
-                        <c.icon className="w-4 h-4" /> {c.label}
+                        <c.icon className="w-4 h-4" /> {t(c.labelKey) || c.fallback}
                       </button>
                     ))}
                   </div>
@@ -170,8 +173,8 @@ export default function Payments() {
                   <div>
                     <label className="label">
                         {category === 'rent_bill'
-                        ? 'Rent / Bill'
-                        : 'Salary record'}
+                        ? t('payments.rentBillLabel')
+                        : t('payments.salaryRecordLabel')}
                     </label>
                     <select
                       className="input w-full"
@@ -184,7 +187,7 @@ export default function Payments() {
                       }}
                       required
                     >
-                      <option value="">Select…</option>
+                      <option value="">{t('payments.selectPrompt')}</option>
                       {category === 'rent_bill' &&
                         (options.rent_bills || []).map((r) => (
                           <option key={r.id} value={r.id}>
@@ -203,7 +206,7 @@ export default function Payments() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="label">Amount *</label>
+                      <label className="label">{t('payments.amountLabel')} *</label>
                       <input
                         type="number"
                         step="0.01"
@@ -215,7 +218,7 @@ export default function Payments() {
                       />
                     </div>
                     <div>
-                      <label className="label">Payment date *</label>
+                      <label className="label">{t('payments.paymentDateLabel')} *</label>
                       <input
                         type="date"
                         className="input w-full"
@@ -228,7 +231,7 @@ export default function Payments() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="label">Payment method (deduct from)</label>
+                      <label className="label">{t('payments.paymentMethodLabel')}</label>
                       <select
                         className="input w-full"
                         value={paymentMethod}
@@ -242,11 +245,11 @@ export default function Payments() {
                         ))}
                       </select>
                       <p className="text-xs text-slate-500 mt-1">
-                        Select bank to deduct from; cash does not affect bank balance.
+                        {t('payments.paymentMethodHint')}
                       </p>
                     </div>
                     <div>
-                      <label className="label">Remarks</label>
+                      <label className="label">{t('payments.remarksLabel')}</label>
                       <input
                         className="input w-full"
                         value={remarks}
@@ -258,7 +261,7 @@ export default function Payments() {
 
                   <div className="pt-2">
                     <button type="submit" className="btn-primary" disabled={submitting}>
-                      {submitting ? 'Processing…' : 'Pay'}
+                      {submitting ? 'Processing…' : t('payments.submit')}
                     </button>
                   </div>
                 </>
@@ -359,7 +362,7 @@ export default function Payments() {
               onChange={(e) => setFilterType(e.target.value)}
             >
               {FILTER_TYPES.map((f) => (
-                <option key={f.value || 'all'} value={f.value}>{f.label}</option>
+                <option key={f.value || 'all'} value={f.value}>{t(f.labelKey) || f.fallback}</option>
               ))}
             </select>
             <input

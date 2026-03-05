@@ -82,7 +82,7 @@ export default function Branches() {
           <p className="text-slate-500 mt-1">Add, edit, and monitor branches</p>
         </div>
         <button onClick={openAdd} className="btn-primary">
-          <Plus className="w-4 h-4" /> Add Branch
+          <Plus className="w-4 h-4" /> {t('actions.addBranch')}
         </button>
       </div>
 
@@ -130,24 +130,26 @@ export default function Branches() {
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">{modal === 'add' ? 'Add Branch' : 'Edit Branch'}</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">
+              {modal === 'add' ? t('actions.addBranch') : 'Edit Branch'}
+            </h2>
             <form onSubmit={save} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Code (optional)</label>
+                  <label className="label">{t('form.codeOptional')}</label>
                   <input className="input" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="BR001" />
                 </div>
                 <div>
-                  <label className="label">Name *</label>
+                  <label className="label">{t('form.name')} *</label>
                   <input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
                 </div>
               </div>
               <div>
-                <label className="label">Location</label>
+                <label className="label">{t('form.location')}</label>
                 <input className="input" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Address" />
               </div>
               <div>
-                <label className="label">Branch Manager</label>
+                <label className="label">{t('form.manager')}</label>
                 <select className="input" value={form.manager_user_id} onChange={(e) => setForm({ ...form, manager_user_id: e.target.value })}>
                   <option value="">– Select –</option>
                   {users.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.role_name})</option>)}
@@ -155,21 +157,21 @@ export default function Branches() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Opening Date</label>
+                  <label className="label">{t('form.openingDate')}</label>
                   <input type="date" className="input" value={form.opening_date} onChange={(e) => setForm({ ...form, opening_date: e.target.value })} />
                 </div>
                 <div>
-                  <label className="label">Closing Date</label>
+                  <label className="label">{t('form.closingDate')}</label>
                   <input type="date" className="input" value={form.closing_date} onChange={(e) => setForm({ ...form, closing_date: e.target.value })} />
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="active" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
-                <label htmlFor="active">Active</label>
+                <label htmlFor="active">{t('form.active')}</label>
               </div>
               <div className="flex gap-3 pt-4">
-                <button type="submit" className="btn-primary">Save</button>
-                <button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
+                <button type="submit" className="btn-primary">{t('common.save')}</button>
+                <button type="button" onClick={() => setModal(null)} className="btn-secondary">{t('common.cancel')}</button>
               </div>
             </form>
           </div>

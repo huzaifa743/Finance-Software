@@ -214,7 +214,7 @@ export default function Purchases() {
           <p className="text-slate-500 mt-1">Invoices, branch-wise purchases, payments</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> Add Purchase</button>
+          <button onClick={openAdd} className="btn-primary"><Plus className="w-4 h-4" /> {t('actions.addPurchase')}</button>
         </div>
       </div>
 
@@ -306,20 +306,42 @@ export default function Purchases() {
       </div>
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-50 flex items_center justify-center bg-black/50 p-4">
           <div className="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">{modal === 'add' ? 'Add Purchase' : 'Edit Purchase'}</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">
+              {modal === 'add' ? t('actions.addPurchase') : 'Edit Purchase'}
+            </h2>
             <form onSubmit={save} className="space-y-4">
-              <div><label className="label">Supplier *</label><select className="input" value={form.supplier_id} onChange={(e) => setForm({ ...form, supplier_id: e.target.value })} required>{suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-              <div><label className="label">Branch</label><select className="input" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}><option value="">–</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="label">Invoice #</label><input className="input" value={form.invoice_no} onChange={(e) => setForm({ ...form, invoice_no: e.target.value })} /></div>
-                <div><label className="label">Date *</label><input type="date" className="input" value={form.purchase_date} onChange={(e) => setForm({ ...form, purchase_date: e.target.value })} required /></div>
+              <div>
+                <label className="label">{t('form.supplier')} *</label>
+                <select className="input" value={form.supplier_id} onChange={(e) => setForm({ ...form, supplier_id: e.target.value })} required>
+                  {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
               </div>
-              <div><label className="label">Due Date</label><input type="date" className="input" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /></div>
+              <div>
+                <label className="label">{t('form.branch')}</label>
+                <select className="input" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}>
+                  <option value="">–</option>
+                  {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Total *</label>
+                  <label className="label">{t('form.invoiceNo')}</label>
+                  <input className="input" value={form.invoice_no} onChange={(e) => setForm({ ...form, invoice_no: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">{t('form.date')} *</label>
+                  <input type="date" className="input" value={form.purchase_date} onChange={(e) => setForm({ ...form, purchase_date: e.target.value })} required />
+                </div>
+              </div>
+              <div>
+                <label className="label">{t('form.dueDate')}</label>
+                <input type="date" className="input" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">{t('form.total')} *</label>
                   <input
                     type="number"
                     step="0.01"
@@ -330,7 +352,7 @@ export default function Purchases() {
                   />
                 </div>
                 <div>
-                  <label className="label">Paid</label>
+                  <label className="label">{t('form.paid')}</label>
                   <input
                     type="number"
                     step="0.01"
@@ -342,7 +364,7 @@ export default function Purchases() {
               </div>
               {modal === 'add' && (
                 <div>
-                  <label className="label">Payment method (for paid amount)</label>
+                  <label className="label">{t('form.paymentMethod')} ({t('form.paid')})</label>
                   <select
                     className="input"
                     value={form.payment_method}
@@ -358,8 +380,14 @@ export default function Purchases() {
                   </select>
                 </div>
               )}
-              <div><label className="label">Remarks</label><input className="input" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} /></div>
-              <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Save</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button></div>
+              <div>
+                <label className="label">{t('form.remarks')}</label>
+                <input className="input" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="submit" className="btn-primary">{t('common.save')}</button>
+                <button type="button" onClick={() => setModal(null)} className="btn-secondary">{t('common.cancel')}</button>
+              </div>
             </form>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { FileDown, BarChart3, DollarSign, Wallet, Truck, TrendingUp, Printer } from 'lucide-react';
 import { getCompanyForPrint, buildPrintHeaderHtml, buildPrintDocumentHtml } from '../utils/printHeader';
@@ -6,6 +7,7 @@ import { useLanguage } from '../context/LanguageContext';
 
 export default function Reports() {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [module, setModule] = useState('sales');
   const [type, setType] = useState('daily');
   const [from, setFrom] = useState(new Date().toISOString().slice(0, 10));
@@ -81,9 +83,8 @@ export default function Reports() {
         .catch((e) => setErr(e.message))
         .finally(run);
     } else if (module === 'pl') {
-      // For P&L, we keep the date range and branch filters but delegate to a dedicated page.
-      // Here we simply navigate the user to the P&L screen via hash, or you can later refactor into an inline view.
-      window.location.hash = '#/pl';
+      // Navigate to the dedicated Profit & Loss page using the router
+      navigate('/pl');
       run();
     } else run();
   };
@@ -167,14 +168,14 @@ export default function Reports() {
     try {
       const company = await getCompanyForPrint();
       const moduleTitles = {
-        sales: 'Sales report',
-        purchases: 'Purchases report',
-        inventory: 'Inventory sales report',
-        daily_combined: 'Daily combined report',
-        branch_summary: 'Branch summary report',
-        branch_ledger: 'Branch-wise receivables ledger',
+        sales: t('reports.module.sales'),
+        purchases: t('reports.module.purchases'),
+        inventory: t('reports.module.inventory'),
+        daily_combined: t('reports.module.dailyCombined'),
+        branch_summary: t('reports.module.branchSummary'),
+        branch_ledger: t('reports.module.branchLedger'),
       };
-      const title = moduleTitles[module] || 'Report';
+      const title = moduleTitles[module] || t('page.reports.title');
 
       const filters = [];
       if (type === 'daily' && date) filters.push(`Date: ${date}`);
@@ -368,7 +369,7 @@ export default function Reports() {
       <div className="card p-4">
         <div className="flex flex-wrap gap-4 items-end">
           <div>
-            <label className="label">Module</label>
+            <label className="label">{t('page.reports.title')}</label>
             <select className="input w-56" value={module} onChange={(e) => {
               const next = e.target.value;
               setModule(next);
@@ -380,13 +381,13 @@ export default function Reports() {
               if (next === 'pl') setType('range');
               setInventorySummary([]);
             }}>
-              <option value="sales">Sales</option>
-              <option value="purchases">Purchases</option>
-              <option value="inventory">Inventory</option>
-              <option value="daily_combined">Daily combined (Sales + Purchases)</option>
-              <option value="branch_summary">Branch-wise sales / bank / purchases</option>
-              <option value="branch_ledger">Branch-wise receivables ledger</option>
-              <option value="pl">Profit &amp; Loss</option>
+              <option value="sales">{t('reports.module.sales')}</option>
+              <option value="purchases">{t('reports.module.purchases')}</option>
+              <option value="inventory">{t('reports.module.inventory')}</option>
+              <option value="daily_combined">{t('reports.module.dailyCombined')}</option>
+              <option value="branch_summary">{t('reports.module.branchSummary')}</option>
+              <option value="branch_ledger">{t('reports.module.branchLedger')}</option>
+              <option value="pl">{t('reports.module.pl')}</option>
             </select>
           </div>
           <div>

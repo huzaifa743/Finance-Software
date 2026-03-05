@@ -24,6 +24,8 @@ export default function Staff() {
   const [ledger, setLedger] = useState(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerQuery, setLedgerQuery] = useState('');
+  const [ledgerFrom, setLedgerFrom] = useState('');
+  const [ledgerTo, setLedgerTo] = useState('');
   const [staffQuery, setStaffQuery] = useState('');
   const [activeTab, setActiveTab] = useState('staff'); // 'staff' | 'rent'
 
@@ -308,34 +310,49 @@ export default function Staff() {
       })
     : list;
   const ledgerNeedle = ledgerQuery.trim().toLowerCase();
+  const inMonthRange = (month) => {
+    if (!month) return true;
+    if (ledgerFrom && month < ledgerFrom) return false;
+    if (ledgerTo && month > ledgerTo) return false;
+    return true;
+  };
   const filteredSalaries = ledger
-    ? (ledgerNeedle
-        ? (ledger.salaries || []).filter((r) => {
-            const hay = [
-              r.month_year,
-              r.net_salary,
-              r.status,
-              r.paid_amount,
-              r.remaining_amount,
-            ].map(normalize).join(' ');
-            return hay.includes(ledgerNeedle);
-          })
-        : (ledger.salaries || []))
+    ? (ledger.salaries || []).filter((r) => {
+        const hay = [
+          r.month_year,
+          r.net_salary,
+          r.status,
+          r.paid_amount,
+          r.remaining_amount,
+        ].map(normalize).join(' ');
+        const matchesSearch = ledgerNeedle ? hay.includes(ledgerNeedle) : true;
+        const inRange = inMonthRange(r.month_year);
+        return matchesSearch && inRange;
+      })
     : [];
   const filteredPayments = ledger
-    ? (ledgerNeedle
-        ? (ledger.payments || []).filter((p) => {
-            const hay = [
-              p.payment_date,
-              p.month_year,
-              p.mode,
-              p.amount,
-              p.remarks,
-            ].map(normalize).join(' ');
-            return hay.includes(ledgerNeedle);
-          })
-        : (ledger.payments || []))
+    ? (ledger.payments || []).filter((p) => {
+        const hay = [
+          p.payment_date,
+          p.month_year,
+          p.mode,
+          p.amount,
+          p.remarks,
+        ].map(normalize).join(' ');
+        const matchesSearch = ledgerNeedle ? hay.includes(ledgerNeedle) : true;
+        const inRange = inMonthRange(p.month_year);
+        return matchesSearch && inRange;
+      })
     : [];
+  const filteredTotalSalary = filteredSalaries.reduce(
+    (acc, r) => acc + (Number(r.net_salary) || 0),
+    0
+  );
+  const filteredTotalPaid = filteredSalaries.reduce(
+    (acc, r) => acc + (Number(r.paid_amount || 0)),
+    0
+  );
+  const filteredPending = filteredTotalSalary - filteredTotalPaid;
 
   return (
     <div className="space-y-6">
@@ -391,7 +408,7 @@ export default function Staff() {
                 />
               </div>
               <button onClick={openAdd} className="btn-primary">
-                <Plus className="w-4 h-4" /> Add Staff
+                <Plus className="w-4 h-4" /> {t('actions.addStaff')}
               </button>
             </div>
           </div>
@@ -418,7 +435,7 @@ export default function Staff() {
                       <td className="px-4 py-3 text-right font-mono">{s.commission_rate}%</td>
                       <td className="px-4 py-3">{s.contact || '–'}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => openSalary(s)} className="btn-primary text-xs mr-1">Process Salary</button>
+                        <button onClick={() => openSalary(s)} className="btn-primary text-xs mr-1">{t('actions.processSalary')}</button>
                         <button onClick={() => openSlips(s)} className="btn-secondary text-xs mr-1">Salary Slips</button>
                         <button onClick={() => openLedger(s)} className="btn-secondary text-xs mr-1 inline-flex items-center gap-1">
                           <BookOpen className="w-3 h-3" /> Ledger
@@ -436,17 +453,19 @@ export default function Staff() {
           {modal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
               <div className="card w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-                <h2 className="text-lg font-semibold text-slate-900 mb-4">{modal === 'add' ? 'Add Staff' : 'Edit Staff'}</h2>
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                  {modal === 'add' ? t('actions.addStaff') : 'Edit Staff'}
+                </h2>
                 <form onSubmit={save} className="space-y-4">
-                  <div><label className="label">Name *</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
-                  <div><label className="label">Branch</label><select className="input" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}><option value="">–</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
+                  <div><label className="label">{t('form.name')} *</label><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
+                  <div><label className="label">{t('form.branch')}</label><select className="input" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })}><option value="">–</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div><label className="label">Fixed Salary</label><input type="number" step="0.01" className="input" value={form.fixed_salary} onChange={(e) => setForm({ ...form, fixed_salary: e.target.value })} /></div>
-                    <div><label className="label">Commission %</label><input type="number" step="0.01" className="input" value={form.commission_rate} onChange={(e) => setForm({ ...form, commission_rate: e.target.value })} /></div>
+                    <div><label className="label">{t('form.fixedSalary')}</label><input type="number" step="0.01" className="input" value={form.fixed_salary} onChange={(e) => setForm({ ...form, fixed_salary: e.target.value })} /></div>
+                    <div><label className="label">{t('form.commissionPercent')}</label><input type="number" step="0.01" className="input" value={form.commission_rate} onChange={(e) => setForm({ ...form, commission_rate: e.target.value })} /></div>
                   </div>
-                  <div><label className="label">Contact</label><input className="input" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></div>
-                  <div><label className="label">Joined Date</label><input type="date" className="input" value={form.joined_date} onChange={(e) => setForm({ ...form, joined_date: e.target.value })} /></div>
-                  <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Save</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button></div>
+                  <div><label className="label">{t('form.contact')}</label><input className="input" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></div>
+                  <div><label className="label">{t('form.joinedDate')}</label><input type="date" className="input" value={form.joined_date} onChange={(e) => setForm({ ...form, joined_date: e.target.value })} /></div>
+                  <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">{t('common.save')}</button><button type="button" onClick={() => setModal(null)} className="btn-secondary">{t('common.cancel')}</button></div>
                 </form>
               </div>
             </div>
@@ -455,15 +474,15 @@ export default function Staff() {
           {salaryModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
               <div className="card w-full max-w-md p-6">
-                <h2 className="text-lg font-semibold text-slate-900 mb-4">Process Salary — {salaryModal.name}</h2>
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">{t('actions.processSalary')} — {salaryModal.name}</h2>
                 <form onSubmit={processSalary} className="space-y-4">
-                  <div><label className="label">Month (YYYY-MM) *</label><input className="input" value={salaryForm.month_year} onChange={(e) => setSalaryForm({ ...salaryForm, month_year: e.target.value })} placeholder="2025-01" required /></div>
-                  <div><label className="label">Base Salary</label><input type="number" step="0.01" className="input" value={salaryForm.base_salary} onChange={(e) => setSalaryForm({ ...salaryForm, base_salary: e.target.value })} /></div>
-                  <div><label className="label">Commission</label><input type="number" step="0.01" className="input" value={salaryForm.commission} onChange={(e) => setSalaryForm({ ...salaryForm, commission: e.target.value })} /></div>
-                  <div><label className="label">Advances</label><input type="number" step="0.01" className="input" value={salaryForm.advances} onChange={(e) => setSalaryForm({ ...salaryForm, advances: e.target.value })} /></div>
-                  <div><label className="label">Deductions</label><input type="number" step="0.01" className="input" value={salaryForm.deductions} onChange={(e) => setSalaryForm({ ...salaryForm, deductions: e.target.value })} /></div>
+                  <div><label className="label">{t('form.month')} *</label><input className="input" value={salaryForm.month_year} onChange={(e) => setSalaryForm({ ...salaryForm, month_year: e.target.value })} placeholder="2025-01" required /></div>
+                  <div><label className="label">{t('form.baseSalary')}</label><input type="number" step="0.01" className="input" value={salaryForm.base_salary} onChange={(e) => setSalaryForm({ ...salaryForm, base_salary: e.target.value })} /></div>
+                  <div><label className="label">{t('form.commission')}</label><input type="number" step="0.01" className="input" value={salaryForm.commission} onChange={(e) => setSalaryForm({ ...salaryForm, commission: e.target.value })} /></div>
+                  <div><label className="label">{t('form.advances')}</label><input type="number" step="0.01" className="input" value={salaryForm.advances} onChange={(e) => setSalaryForm({ ...salaryForm, advances: e.target.value })} /></div>
+                  <div><label className="label">{t('form.deductions')}</label><input type="number" step="0.01" className="input" value={salaryForm.deductions} onChange={(e) => setSalaryForm({ ...salaryForm, deductions: e.target.value })} /></div>
                   <p className="text-sm font-medium">Net: {fmt(net())}</p>
-                  <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">Process</button><button type="button" onClick={() => setSalaryModal(null)} className="btn-secondary">Cancel</button></div>
+                  <div className="flex gap-3 pt-4"><button type="submit" className="btn-primary">{t('actions.processSalary')}</button><button type="button" onClick={() => setSalaryModal(null)} className="btn-secondary">{t('common.cancel')}</button></div>
                 </form>
               </div>
             </div>
@@ -513,9 +532,9 @@ export default function Staff() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-semibold text-slate-900 mb-1">Ledger — {ledgerStaff.name}</h2>
-                    {ledger && (
+                {ledger && (
                       <p className="text-sm text-slate-600">
-                        Total salary: {fmt(ledger.totalSalary)} • Total paid: {fmt(ledger.totalPaid)} • Pending: {fmt(ledger.pending)}
+                        Total salary: {fmt(filteredTotalSalary)} • Total paid: {fmt(filteredTotalPaid)} • Pending: {fmt(filteredPending)}
                       </p>
                     )}
                   </div>
@@ -564,11 +583,27 @@ export default function Staff() {
                         <span>Search</span>
                       </div>
                       <input
-                        className="input w-full md:w-[520px]"
+                        className="input w-full md:w-[260px]"
                         placeholder="Search ledger by month, amount, status, remarks"
                         value={ledgerQuery}
                         onChange={(e) => setLedgerQuery(e.target.value)}
                       />
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+                        <span>{t('form.fromMonth')}</span>
+                        <input
+                          type="month"
+                          className="input w-32"
+                          value={ledgerFrom}
+                          onChange={(e) => setLedgerFrom(e.target.value)}
+                        />
+                        <span>{t('form.toMonth')}</span>
+                        <input
+                          type="month"
+                          className="input w-32"
+                          value={ledgerTo}
+                          onChange={(e) => setLedgerTo(e.target.value)}
+                        />
+                      </div>
                     </div>
 
                     <div className="overflow-x-auto mt-4">

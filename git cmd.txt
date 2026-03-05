@@ -13,5 +13,5 @@ git push -u origin main
 
 
 git add .
-git commit -m "Dashboard Cards language Changeable"
+git commit -m "Language Fixing"
 git push origin main
