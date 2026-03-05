@@ -21,22 +21,22 @@ export default function Dashboard() {
   const { widgets, branchComparison, bankAccounts, date } = data;
 
   const baseCards = [
-    { label: 'Sales Today', value: widgets.salesToday, icon: DollarSign, color: 'bg-primary-500' },
-    { label: 'Cash Sales Today', value: widgets.salesTodayCash, icon: WalletCards, color: 'bg-emerald-500' },
-    { label: 'Bank Sales Today', value: widgets.salesTodayBank, icon: Landmark, color: 'bg-blue-500' },
-    { label: 'Sales Today on Credit', value: widgets.salesTodayCredit, icon: Receipt, color: 'bg-amber-500' },
-    { label: 'Sales on Credit (Receivable)', value: widgets.salesOnCredit, icon: Receipt, color: 'bg-violet-500' },
-    { label: 'Receivable Recoveries (Total)', value: widgets.receivableRecovered, icon: Receipt, color: 'bg-emerald-700' },
-    { label: 'Sales (Month)', value: widgets.salesMonth, icon: TrendingUp, color: 'bg-accent-500' },
-    { label: 'Cash Sales (Month)', value: widgets.salesMonthCash, icon: WalletCards, color: 'bg-emerald-500' },
-    { label: 'Bank Sales (Month)', value: widgets.salesMonthBank, icon: Landmark, color: 'bg-blue-500' },
-    { label: 'Net Profit (Month)', value: widgets.netProfit, icon: TrendingUp, color: 'bg-emerald-600' },
-    { label: 'Cash in Hand', value: widgets.cashInHand, icon: PiggyBank, color: 'bg-lime-500' },
-    { label: 'Bank Balance', value: widgets.bankBalance, icon: Landmark, color: 'bg-blue-600' },
-    { label: 'Payables', value: widgets.payables, icon: Truck, color: 'bg-rose-500' },
-    { label: 'Total Rent & Bills Payable', value: widgets.rentBillsPayable, icon: Receipt, color: 'bg-orange-500' },
-    { label: 'Total Salaries Payable', value: widgets.salariesPayable, icon: DollarSign, color: 'bg-fuchsia-600' },
-    { label: 'Total Paid (All)', value: widgets.totalPaid, icon: DollarSign, color: 'bg-emerald-700' },
+    { labelKey: 'dashboard.card.salesToday', defaultLabel: 'Sales Today', value: widgets.salesToday, icon: DollarSign, color: 'bg-primary-500' },
+    { labelKey: 'dashboard.card.salesTodayCash', defaultLabel: 'Cash Sales Today', value: widgets.salesTodayCash, icon: WalletCards, color: 'bg-emerald-500' },
+    { labelKey: 'dashboard.card.salesTodayBank', defaultLabel: 'Bank Sales Today', value: widgets.salesTodayBank, icon: Landmark, color: 'bg-blue-500' },
+    { labelKey: 'dashboard.card.salesTodayCredit', defaultLabel: 'Sales Today on Credit', value: widgets.salesTodayCredit, icon: Receipt, color: 'bg-amber-500' },
+    { labelKey: 'dashboard.card.salesOnCredit', defaultLabel: 'Sales on Credit (Receivable)', value: widgets.salesOnCredit, icon: Receipt, color: 'bg-violet-500' },
+    { labelKey: 'dashboard.card.receivableRecovered', defaultLabel: 'Receivable Recoveries (Total)', value: widgets.receivableRecovered, icon: Receipt, color: 'bg-emerald-700' },
+    { labelKey: 'dashboard.card.salesMonth', defaultLabel: 'Sales (Month)', value: widgets.salesMonth, icon: TrendingUp, color: 'bg-accent-500' },
+    { labelKey: 'dashboard.card.salesMonthCash', defaultLabel: 'Cash Sales (Month)', value: widgets.salesMonthCash, icon: WalletCards, color: 'bg-emerald-500' },
+    { labelKey: 'dashboard.card.salesMonthBank', defaultLabel: 'Bank Sales (Month)', value: widgets.salesMonthBank, icon: Landmark, color: 'bg-blue-500' },
+    { labelKey: 'dashboard.card.netProfitMonth', defaultLabel: 'Net Profit (Month)', value: widgets.netProfit, icon: TrendingUp, color: 'bg-emerald-600' },
+    { labelKey: 'dashboard.card.cashInHand', defaultLabel: 'Cash in Hand', value: widgets.cashInHand, icon: PiggyBank, color: 'bg-lime-500' },
+    { labelKey: 'dashboard.card.bankBalance', defaultLabel: 'Bank Balance', value: widgets.bankBalance, icon: Landmark, color: 'bg-blue-600' },
+    { labelKey: 'dashboard.card.payables', defaultLabel: 'Payables', value: widgets.payables, icon: Truck, color: 'bg-rose-500' },
+    { labelKey: 'dashboard.card.rentBillsPayable', defaultLabel: 'Total Rent & Bills Payable', value: widgets.rentBillsPayable, icon: Receipt, color: 'bg-orange-500' },
+    { labelKey: 'dashboard.card.salariesPayable', defaultLabel: 'Total Salaries Payable', value: widgets.salariesPayable, icon: DollarSign, color: 'bg-fuchsia-600' },
+    { labelKey: 'dashboard.card.totalPaidAll', defaultLabel: 'Total Paid (All)', value: widgets.totalPaid, icon: DollarSign, color: 'bg-emerald-700' },
   ];
 
   const bankCards = (Array.isArray(bankAccounts) ? bankAccounts : []).map((b) => ({
@@ -65,11 +65,13 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {cards.map(({ label, subLabel, value, icon: Icon, color }) => (
-          <div key={label} className="card p-5">
+        {cards.map(({ label, labelKey, defaultLabel, subLabel, value, icon: Icon, color }) => (
+          <div key={labelKey || label || defaultLabel} className="card p-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">{label}</p>
+                <p className="text-sm font-medium text-slate-500">
+                  {labelKey ? t(labelKey) : (label || defaultLabel)}
+                </p>
                 {subLabel && <p className="mt-0.5 text-xs text-slate-400">{subLabel}</p>}
                 <p className="mt-1 text-xl font-bold text-slate-900">{fmt(value)}</p>
               </div>
